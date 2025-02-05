@@ -1,0 +1,8 @@
+webmanifest 3.0
+seperate React components that can be used for webextensioni and frontend webapp
+Generate mockdata in .json
+Run eslint and fix errors
+Use consistent logging and naming
+Use modern UX principles like inline editing, validation, async saving of edits, dragging dropping order, local saving of UI state and data
+
+We're using WXT for this project, folder frontend
