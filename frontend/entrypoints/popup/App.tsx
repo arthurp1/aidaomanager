@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TaskTable } from './components/TaskTable';
 import { AIAssistant } from './components/AIAssistant';
+import { TaskForm } from './components/TaskForm';
 import {
   Cog6ToothIcon,
   UserCircleIcon,
@@ -59,10 +60,6 @@ function App() {
   const [selectedTools, setSelectedTools] = useState<string[]>([]);
   const [toolSearch, setToolSearch] = useState('');
   const [editingRole, setEditingRole] = useState<Role | null>(null);
-  const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskTime, setNewTaskTime] = useState<number>(0);
-  const [newTaskTools, setNewTaskTools] = useState<string[]>([]);
-  const [taskToolSearch, setTaskToolSearch] = useState('');
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [isHoveringTaskList, setIsHoveringTaskList] = useState(false);
   const [isHoveringRoles, setIsHoveringRoles] = useState(false);
@@ -383,25 +380,22 @@ function App() {
     setSubtasks(prev => [...prev, newSubtaskData]);
   };
 
-  const handleCreateTask = () => {
-    if (!newTaskName.trim() || !selectedRole) return;
+  const handleCreateTask = (newTask: { title: string; estimatedTime: number; tools: string[] }) => {
+    if (!selectedRole) return;
 
-    const newTask: Task = {
+    const taskData: Task = {
       id: crypto.randomUUID(),
-      title: newTaskName,
+      title: newTask.title,
       roleId: selectedRole,
       createdAt: new Date(),
       isCollapsed: true,
-      estimatedTime: newTaskTime,
-      tools: newTaskTools,
+      estimatedTime: newTask.estimatedTime,
+      tools: newTask.tools,
       trackedTime: 0,
     };
 
-    setTasks(prev => [...prev, newTask]);
-    setNewTaskName('');
-    setNewTaskTime(0);
-    setNewTaskTools([]);
-    setTaskToolSearch('');
+    setTasks(prev => [...prev, taskData]);
+    setShowTaskForm(false);
   };
 
   const toggleTaskCollapse = (taskId: string) => {
@@ -646,98 +640,13 @@ function App() {
                   </button>
                 )}
 
-                {/* Task Creation Form (when button clicked) */}
+                {/* Task Creation Form */}
                 {showTaskForm && (
-                  <div className="px-3 py-2 border-t dark:border-gray-700 bg-gray-50/80 dark:bg-dark-hover/80">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Add a new task..."
-                          value={newTaskName}
-                          onChange={(e) => setNewTaskName(e.target.value)}
-                          className="flex-1 px-2 py-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm"
-                          autoFocus
-                        />
-                        <input
-                          type="number"
-                          placeholder="Time (h)"
-                          value={newTaskTime || ''}
-                          onChange={(e) => setNewTaskTime(Number(e.target.value))}
-                          className="w-20 px-2 py-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm text-right"
-                          step="0.5"
-                          min="0"
-                        />
-                      </div>
-
-                      {/* Tool Selection */}
-                      <div className="flex flex-col gap-1">
-                        <input
-                          type="text"
-                          placeholder="Search tools..."
-                          value={taskToolSearch}
-                          onChange={(e) => setTaskToolSearch(e.target.value)}
-                          className="w-full px-2 py-1 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm"
-                        />
-                        {/* Selected Tools */}
-                        <div className="flex flex-wrap gap-1">
-                          {newTaskTools.map(tool => (
-                            <div 
-                              key={tool}
-                              className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                            >
-                              <span>{tool}</span>
-                              <button
-                                onClick={() => setNewTaskTools(prev => prev.filter(t => t !== tool))}
-                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                        {/* Tool Suggestions */}
-                        {taskToolSearch && (
-                          <div className="absolute mt-16 w-[calc(100%-1.5rem)] bg-white/90 dark:bg-dark-surface/90 backdrop-blur-sm border rounded shadow-lg dark:border-gray-600 max-h-40 overflow-y-auto z-10">
-                            {getFilteredTools().map(tool => (
-                              <button
-                                key={tool.url}
-                                onClick={() => {
-                                  setNewTaskTools(prev => [...prev, tool.url]);
-                                  setTaskToolSearch('');
-                                }}
-                                className="w-full px-2 py-1.5 text-left hover:bg-gray-100/70 dark:hover:bg-dark-hover/70 border-b last:border-b-0 dark:border-gray-600/50 transition-colors"
-                              >
-                                <div className="text-sm text-gray-700 dark:text-gray-200">{tool.url}</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                  {tool.description}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setShowTaskForm(false)}
-                          className="px-3 py-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleCreateTask();
-                            setShowTaskForm(false);
-                          }}
-                          disabled={!newTaskName.trim() || newTaskTime <= 0}
-                          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Add Task
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <TaskForm
+                    onCreateTask={handleCreateTask}
+                    onCancel={() => setShowTaskForm(false)}
+                    toolCategories={toolCategories}
+                  />
                 )}
               </div>
             </div>
