@@ -1,42 +1,342 @@
 {
   "design": {
-    "canva.com": "Online graphic design platform",
-    "figma.com": "Collaborative interface design tool",
-    "miro.com": "Online collaborative whiteboard"
+    "canva.com": {
+      "description": "Online graphic design platform",
+      "webtrack": {
+        "url": "https://www.canva.com/*",
+        "multitask_chance": "high",
+        "search": {
+          "available": true,
+          "project_keywords": ["DAO logo", "AI agent interface", "web3 design", "robot avatar"]
+        },
+        "screenshot": {
+          "yes": true,
+          "subpages": ["editor", "dashboard", "designs"]
+        }
+      },
+      "api": {
+        "credentials": [
+          {"api_key": true},
+          {"oauth2": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/v1/designs",
+            "input_params": {
+              "template_id": "string",
+              "brand_kit": "object",
+              "dimensions": "object"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/v1/exports",
+            "input_params": {
+              "design_id": "string",
+              "format": "string",
+              "quality": "number"
+            },
+            "output_format": "binary"
+          }
+        ]
+      }
+    },
+    "figma.com": {
+      "description": "Collaborative interface design tool",
+      "webtrack": {
+        "url": "https://www.figma.com/file/*",
+        "multitask_chance": "mid",
+        "search": {
+          "available": true,
+          "project_keywords": ["DAO dashboard", "AI agent UI components", "web3 widgets", "agent settings panel"]
+        },
+        "screenshot": {
+          "yes": true,
+          "subpages": ["canvas", "prototype", "assets"]
+        }
+      },
+      "api": {
+        "credentials": [
+          {"access_token": true},
+          {"refresh_token": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/v1/files/:file_key",
+            "input_params": {
+              "file_key": "string",
+              "version": "string"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/v1/images/:file_key",
+            "input_params": {
+              "ids": "string[]",
+              "scale": "number",
+              "format": "string"
+            },
+            "output_format": "json"
+          }
+        ]
+      }
+    }
   },
   "social": {
     "web.whatsapp.com": "Web-based WhatsApp messenger",
-    "discord.com/app": "Chat and community platform",
-    "slack.com": "Business communication platform",
-    "teams.microsoft.com": "Microsoft Teams collaboration tool",
-    "telegram.org/webapp": "Web-based Telegram messenger",
-    "messenger.com": "Facebook Messenger web interface",
-    "linkedin.com": "Professional networking platform"
+    "discord.com/app": {
+      "description": "Chat and community platform",
+      "webtrack": {
+        "url": "https://discord.com/channels/*",
+        "multitask_chance": "high",
+        "search": {
+          "available": true,
+          "project_keywords": ["DAO governance", "AI agent development", "bot commands", "community feedback"]
+        },
+        "screenshot": {
+          "yes": false,
+          "subpages": []
+        }
+      },
+      "api": {
+        "credentials": [
+          {"bot_token": true},
+          {"client_id": true},
+          {"client_secret": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/api/v10/channels/:channel_id/messages",
+            "input_params": {
+              "content": "string",
+              "embeds": "array",
+              "components": "array"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/api/v10/guilds/:guild_id/members",
+            "input_params": {
+              "limit": "number",
+              "after": "string"
+            },
+            "output_format": "json"
+          }
+        ]
+      }
+    }
   },
   "productivity": {
-    "notion.so": "All-in-one workspace",
-    "trello.com": "Project management tool",
-    "asana.com": "Team project management",
-    "monday.com": "Work management platform",
-    "clickup.com": "Project management software",
-    "todoist.com": "Task management tool",
-    "evernote.com": "Note-taking app"
+    "notion.so": {
+      "description": "All-in-one workspace",
+      "webtrack": {
+        "url": "https://www.notion.so/*",
+        "multitask_chance": "mid",
+        "search": {
+          "available": true,
+          "project_keywords": ["DAO documentation", "AI agent architecture", "development roadmap", "meeting notes"]
+        },
+        "screenshot": {
+          "yes": true,
+          "subpages": ["pages", "databases", "calendar"]
+        }
+      },
+      "api": {
+        "credentials": [
+          {"integration_token": true},
+          {"oauth_access_token": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/v1/pages",
+            "input_params": {
+              "parent": "object",
+              "properties": "object",
+              "children": "array"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/v1/databases/:database_id/query",
+            "input_params": {
+              "filter": "object",
+              "sorts": "array",
+              "page_size": "number"
+            },
+            "output_format": "json"
+          }
+        ]
+      }
+    }
   },
   "development": {
-    "github.com": "Code hosting platform",
-    "gitlab.com": "DevOps platform",
-    "bitbucket.org": "Git code management",
-    "codepen.io": "Front-end development playground",
-    "codesandbox.io": "Online code editor",
-    "replit.com": "Collaborative coding platform",
-    "stackoverflow.com": "Developer Q&A community"
+    "github.com": {
+      "description": "Code hosting platform",
+      "webtrack": {
+        "url": "https://github.com/*",
+        "multitask_chance": "high",
+        "search": {
+          "available": true,
+          "project_keywords": ["autonomous agent", "DAO framework", "AI integration", "smart contracts"]
+        },
+        "screenshot": {
+          "yes": true,
+          "subpages": ["code", "issues", "pull-requests"]
+        }
+      },
+      "api": {
+        "credentials": [
+          {"personal_access_token": true},
+          {"oauth_token": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/repos/:owner/:repo/contents/:path",
+            "input_params": {
+              "ref": "string",
+              "path": "string"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/repos/:owner/:repo/issues",
+            "input_params": {
+              "state": "string",
+              "labels": "string[]",
+              "sort": "string"
+            },
+            "output_format": "json"
+          }
+        ]
+      }
+    }
   },
   "video_conferencing": {
     "zoom.us": "Video conferencing platform",
-    "meet.google.com": "Google Meet video calls"
+    "meet.google.com": {
+      "description": "Google Meet video calls",
+      "webtrack": {
+        "url": "https://meet.google.com/*",
+        "multitask_chance": "high",
+        "search": {
+          "available": false,
+          "project_keywords": ["DAO meeting", "AI agent demo", "team sync", "stakeholder presentation"]
+        },
+        "screenshot": {
+          "yes": false,
+          "subpages": []
+        }
+      },
+      "api": {
+        "credentials": [
+          {"oauth2_token": true},
+          {"api_key": true},
+          {"service_account": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/v1/spaces/:spaceId/meetings",
+            "input_params": {
+              "requestId": "string",
+              "conferenceData": {
+                "createRequest": {
+                  "requestId": "string",
+                  "conferenceSolutionKey": {"type": "string"}
+                }
+              },
+              "duration": "string",
+              "participants": "array"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/v1/spaces/:spaceId/meetings/:meetingId/participants",
+            "input_params": {
+              "pageSize": "number",
+              "pageToken": "string"
+            },
+            "output_format": "json"
+          }
+        ]
+      }
+    }
+  },
+  "writing": {
+    "docs.google.com": "Google Docs online editor",
+    "notion.so": "All-in-one workspace"
   },
   "documentation": {
-    "docs.google.com": "Google Docs online editor",
-    "confluence.atlassian.com": "Team documentation"
+    "docs.google.com": {
+      "description": "Google Docs online editor",
+      "webtrack": {
+        "url": "https://docs.google.com/document/*",
+        "multitask_chance": "high",
+        "search": {
+          "available": true,
+          "project_keywords": [
+            "DAO governance structure",
+            "AI agent specifications",
+            "technical documentation",
+            "API integration guide",
+            "user stories",
+            "meeting minutes"
+          ]
+        },
+        "screenshot": {
+          "yes": true,
+          "subpages": ["edit", "preview", "suggestions"]
+        }
+      },
+      "api": {
+        "credentials": [
+          {"oauth2_token": true},
+          {"api_key": true},
+          {"service_account_key": true}
+        ],
+        "endpoints": [
+          {
+            "url": "/v1/documents/:documentId",
+            "input_params": {
+              "documentId": "string",
+              "suggestionsViewMode": "string"
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/v1/documents/:documentId/batch",
+            "input_params": {
+              "requests": [
+                {
+                  "insertText": {
+                    "location": {"index": "number"},
+                    "text": "string"
+                  }
+                },
+                {
+                  "updateTextStyle": {
+                    "range": {
+                      "startIndex": "number",
+                      "endIndex": "number"
+                    },
+                    "textStyle": "object",
+                    "fields": "string"
+                  }
+                }
+              ]
+            },
+            "output_format": "json"
+          },
+          {
+            "url": "/v1/documents/:documentId/suggestions",
+            "input_params": {
+              "suggestionMode": "string",
+              "start": "number",
+              "end": "number"
+            },
+            "output_format": "json"
+          }
+        ]
+      }
+    }
   }
 } 

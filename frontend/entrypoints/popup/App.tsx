@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TaskTable } from './components/TaskTable';
+import { AIAssistant } from './components/AIAssistant';
 import {
   Cog6ToothIcon,
   UserCircleIcon,
   ChatBubbleLeftIcon,
   ClipboardDocumentListIcon,
   SunIcon,
-  MoonIcon
+  MoonIcon,
+  SparklesIcon
 } from '@heroicons/react/24/outline';
 import './App.css';
 
@@ -21,6 +23,7 @@ interface SubTask {
   totalTimeSpent?: number;
   roleId: string;
   taskId: string;
+  isCompleted?: boolean;
 }
 
 interface Task {
@@ -66,56 +69,264 @@ function App() {
   const appRef = useRef<HTMLDivElement>(null);
   const [currentView, setCurrentView] = useState<'tasks' | 'chat' | 'profile' | 'settings'>('tasks');
   const [isDark, setIsDark] = useState(false);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
 
   // Tool suggestions data
   const toolCategories = {
     design: {
-      "canva.com": "Online graphic design platform",
-      "figma.com": "Collaborative interface design tool",
-      "miro.com": "Online collaborative whiteboard"
-    },
-    social: {
-      "web.whatsapp.com": "Web-based WhatsApp messenger",
-      "discord.com/app": "Chat and community platform",
-      "slack.com": "Business communication platform",
-      "teams.microsoft.com": "Microsoft Teams collaboration tool",
-      "telegram.org/webapp": "Web-based Telegram messenger",
-      "messenger.com": "Facebook Messenger web interface",
-      "linkedin.com": "Professional networking platform"
-    },
-    productivity: {
-      "notion.so": "All-in-one workspace",
-      "trello.com": "Project management tool",
-      "asana.com": "Team project management",
-      "monday.com": "Work management platform",
-      "clickup.com": "Project management software",
-      "todoist.com": "Task management tool",
-      "evernote.com": "Note-taking app"
+      "canva.com": {
+        description: "Online graphic design platform",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "api_key", name: "CANVA_API_KEY" },
+            { type: "oauth2", name: "CANVA_OAUTH_TOKEN" }
+          ],
+          endpoints: [
+            {
+              url: "api.canva.com/v1/designs",
+              input_params: { brand_kit_id: "string", template_id: "string" },
+              output_format: "{ design_id: string, preview_url: string }"
+            },
+            {
+              url: "api.canva.com/v1/exports",
+              input_params: { design_id: "string", format: "png|pdf" },
+              output_format: "{ download_url: string, expires_at: timestamp }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://canva.com/design/*",
+          multitask_chance: "low",
+          search: {
+            available: true,
+            project_keywords: ["DAO branding", "AI agent logo", "web3 design"]
+          },
+          screenshot: { enabled: true, subpages: ["editor", "dashboard"] }
+        }
+      },
+      "figma.com": {
+        description: "Collaborative interface design tool",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "api_key", name: "FIGMA_ACCESS_TOKEN" },
+            { type: "oauth2", name: "FIGMA_OAUTH_TOKEN" }
+          ],
+          endpoints: [
+            {
+              url: "api.figma.com/v1/files/:file_key",
+              input_params: { file_key: "string", version: "string?" },
+              output_format: "{ document: object, components: object[], styles: object[] }"
+            },
+            {
+              url: "api.figma.com/v1/images/:file_key",
+              input_params: { file_key: "string", ids: "string[]", format: "jpg|png|svg" },
+              output_format: "{ images: { [key: string]: string } }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://figma.com/file/*",
+          multitask_chance: "low",
+          search: {
+            available: true,
+            project_keywords: ["DAO dashboard", "AI interface", "agent controls"]
+          },
+          screenshot: { enabled: true, subpages: ["editor", "prototype"] }
+        }
+      }
     },
     development: {
-      "github.com": "Code hosting platform",
-      "gitlab.com": "DevOps platform",
-      "bitbucket.org": "Git code management",
-      "codepen.io": "Front-end development playground",
-      "codesandbox.io": "Online code editor",
-      "replit.com": "Collaborative coding platform",
-      "stackoverflow.com": "Developer Q&A community"
+      "github.com": {
+        description: "Code hosting platform",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "api_key", name: "GITHUB_TOKEN" },
+            { type: "oauth2", name: "GITHUB_OAUTH_TOKEN" }
+          ],
+          endpoints: [
+            {
+              url: "api.github.com/repos/:owner/:repo/issues",
+              input_params: { title: "string", body: "string", labels: "string[]" },
+              output_format: "{ issue_number: number, html_url: string }"
+            },
+            {
+              url: "api.github.com/repos/:owner/:repo/pulls",
+              input_params: { title: "string", head: "string", base: "string" },
+              output_format: "{ pr_number: number, html_url: string }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://github.com/*",
+          multitask_chance: "high",
+          search: {
+            available: true,
+            project_keywords: ["DAO implementation", "AI agent framework", "web3 integration"]
+          },
+          screenshot: { enabled: false }
+        }
+      },
+      "codesandbox.io": {
+        description: "Online code editor",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "api_key", name: "CODESANDBOX_TOKEN" }
+          ],
+          endpoints: [
+            {
+              url: "api.codesandbox.io/v1/sandboxes",
+              input_params: { template: "string", files: "object" },
+              output_format: "{ sandbox_id: string, url: string }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://codesandbox.io/s/*",
+          multitask_chance: "mid",
+          search: {
+            available: true,
+            project_keywords: ["DAO prototype", "AI agent demo", "web3 sandbox"]
+          },
+          screenshot: { enabled: true, subpages: ["editor", "preview"] }
+        }
+      }
     },
-    video_conferencing: {
-      "zoom.us": "Video conferencing platform",
-      "meet.google.com": "Google Meet video calls"
+    productivity: {
+      "notion.so": {
+        description: "All-in-one workspace",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "api_key", name: "NOTION_API_KEY" },
+            { type: "oauth2", name: "NOTION_OAUTH_TOKEN" }
+          ],
+          endpoints: [
+            {
+              url: "api.notion.com/v1/pages",
+              input_params: { parent_id: "string", properties: "object" },
+              output_format: "{ page_id: string, url: string }"
+            },
+            {
+              url: "api.notion.com/v1/databases/:database_id/query",
+              input_params: { filter: "object", sorts: "object[]" },
+              output_format: "{ results: object[], next_cursor: string }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://notion.so/*",
+          multitask_chance: "high",
+          search: {
+            available: true,
+            project_keywords: ["DAO documentation", "AI agent specs", "project roadmap"]
+          },
+          screenshot: { enabled: true, subpages: ["page", "database"] }
+        }
+      },
+      "linear.app": {
+        description: "Software project management",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "api_key", name: "LINEAR_API_KEY" }
+          ],
+          endpoints: [
+            {
+              url: "api.linear.app/graphql",
+              input_params: { query: "string", variables: "object" },
+              output_format: "{ data: object, errors?: object[] }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://linear.app/*",
+          multitask_chance: "mid",
+          search: {
+            available: true,
+            project_keywords: ["DAO development", "AI agent features", "sprint planning"]
+          },
+          screenshot: { enabled: true, subpages: ["issues", "cycles", "roadmap"] }
+        }
+      }
     },
-    documentation: {
-      "docs.google.com": "Google Docs online editor",
-      "confluence.atlassian.com": "Team documentation"
+    research: {
+      "scholar.google.com": {
+        description: "Academic research platform",
+        type: ["webtrack"],
+        webtrack: {
+          url: "https://scholar.google.com/*",
+          multitask_chance: "high",
+          search: {
+            available: true,
+            project_keywords: ["DAO governance", "AI agent architecture", "autonomous systems"]
+          },
+          screenshot: { enabled: false }
+        }
+      },
+      "arxiv.org": {
+        description: "Research paper repository",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [],
+          endpoints: [
+            {
+              url: "export.arxiv.org/api/query",
+              input_params: { search_query: "string", start: "number", max_results: "number" },
+              output_format: "{ entries: { title: string, summary: string, pdf_url: string }[] }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://arxiv.org/*",
+          multitask_chance: "high",
+          search: {
+            available: true,
+            project_keywords: ["DAO research", "AI agent papers", "autonomous systems"]
+          },
+          screenshot: { enabled: true, subpages: ["abstract"] }
+        }
+      }
+    },
+    communication: {
+      "discord.com": {
+        description: "Chat and community platform",
+        type: ["webtrack", "api"],
+        api: {
+          credentials: [
+            { type: "bot_token", name: "DISCORD_BOT_TOKEN" },
+            { type: "oauth2", name: "DISCORD_OAUTH_TOKEN" }
+          ],
+          endpoints: [
+            {
+              url: "discord.com/api/v10/channels/:channel_id/messages",
+              input_params: { content: "string", embeds: "object[]" },
+              output_format: "{ id: string, content: string, timestamp: string }"
+            }
+          ]
+        },
+        webtrack: {
+          url: "https://discord.com/channels/*",
+          multitask_chance: "high",
+          search: {
+            available: true,
+            project_keywords: ["DAO community", "AI agent updates", "project announcements"]
+          },
+          screenshot: { enabled: false }
+        }
+      }
     }
   };
 
   const getFilteredTools = () => {
     const allTools: { url: string; description: string; category: string }[] = [];
     Object.entries(toolCategories).forEach(([category, tools]) => {
-      Object.entries(tools).forEach(([url, description]) => {
-        allTools.push({ url, description, category });
+      Object.entries(tools).forEach(([url, tool]) => {
+        allTools.push({ url, description: tool.description, category });
       });
     });
 
@@ -247,12 +458,82 @@ function App() {
     return tasks.filter(task => task.roleId === roleId);
   };
 
+  const handlePlayTask = (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setActiveTask(task);
+    // Collapse the task in the backlog when it's played
+    setTasks(prev => prev.map(t => 
+      t.id === task.id ? { ...t, isCollapsed: true } : t
+    ));
+  };
+
+  const handleToggleSubtaskComplete = (subtaskId: string, isCompleted: boolean) => {
+    setSubtasks(prev => prev.map(subtask => 
+      subtask.id === subtaskId ? { ...subtask, isCompleted } : subtask
+    ));
+  };
+
+  const handleDeleteSubtask = (subtaskId: string) => {
+    setSubtasks(prev => prev.filter(subtask => subtask.id !== subtaskId));
+  };
+
   return (
     <div 
       ref={appRef}
       className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col"
     >
       <div className="flex-1 flex flex-col">
+        {/* Active Task Section */}
+        {activeTask && (
+          <div className="bg-white dark:bg-dark-surface border-b dark:border-gray-700">
+            <div className="px-3 py-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTask(null)}
+                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                  >
+                    ■
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-medium">{activeTask.title}</h2>
+                    <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                      Manual tracking
+                    </span>
+                  </div>
+                </div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {activeTask.trackedTime}/{activeTask.estimatedTime}h
+                </span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
+                {activeTask.tools.map(tool => (
+                  <a
+                    key={tool}
+                    href={`https://${tool}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {tool}
+                  </a>
+                ))}
+              </div>
+              {/* Subtasks for active task */}
+              <TaskTable
+                tasks={subtasks.filter(subtask => subtask.taskId === activeTask.id)}
+                onCreateTask={(newSubtask) => handleCreateSubtask({ 
+                  ...newSubtask, 
+                  roleId: activeTask.roleId,
+                  taskId: activeTask.id 
+                })}
+                onToggleComplete={handleToggleSubtaskComplete}
+                onDeleteTask={handleDeleteSubtask}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Role Selection with Everyone role */}
         <div 
           className="px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-x-auto relative"
@@ -310,12 +591,9 @@ function App() {
                     >
                       <button 
                         className="opacity-0 group-hover:opacity-100 mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle play button click
-                        }}
+                        onClick={(e) => handlePlayTask(task, e)}
                       >
-                        ▶
+                        {activeTask?.id === task.id ? '■' : '▶'}
                       </button>
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
@@ -350,6 +628,8 @@ function App() {
                           roleId: selectedRole,
                           taskId: task.id 
                         })}
+                        onToggleComplete={handleToggleSubtaskComplete}
+                        onDeleteTask={handleDeleteSubtask}
                       />
                     )}
                   </div>
@@ -368,7 +648,7 @@ function App() {
 
                 {/* Task Creation Form (when button clicked) */}
                 {showTaskForm && (
-                  <div className="px-3 py-2 border-t dark:border-gray-700">
+                  <div className="px-3 py-2 border-t dark:border-gray-700 bg-gray-50/80 dark:bg-dark-hover/80">
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2">
                         <input
@@ -479,6 +759,13 @@ function App() {
           title="Tasks"
         >
           <ClipboardDocumentListIcon className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => setShowAIAssistant(true)}
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400"
+          title="AI Assistant"
+        >
+          <SparklesIcon className="w-5 h-5" />
         </button>
         <button
           onClick={() => setCurrentView('chat')}
@@ -614,6 +901,11 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* AI Assistant Modal */}
+      {showAIAssistant && (
+        <AIAssistant onClose={() => setShowAIAssistant(false)} />
       )}
     </div>
   );

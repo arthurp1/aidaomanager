@@ -17,16 +17,24 @@ interface SubTask {
   totalTimeSpent?: number;
   roleId: string;
   taskId: string;
+  isCompleted?: boolean;
 }
 
 interface TaskTableProps {
   tasks: SubTask[];
   onCreateTask: (task: { title: string; estimatedTime: number; domain: string }) => void;
+  onDeleteTask?: (taskId: string) => void;
+  onToggleComplete?: (taskId: string, isCompleted: boolean) => void;
 }
 
 const columnHelper = createColumnHelper<SubTask>();
 
-export const TaskTable: React.FC<TaskTableProps> = ({ tasks, onCreateTask }) => {
+export const TaskTable: React.FC<TaskTableProps> = ({ 
+  tasks, 
+  onCreateTask, 
+  onDeleteTask,
+  onToggleComplete 
+}) => {
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<{
     title: string;
@@ -57,20 +65,70 @@ export const TaskTable: React.FC<TaskTableProps> = ({ tasks, onCreateTask }) => 
   };
 
   const columns = [
-    columnHelper.accessor('title', {
-      header: 'Task',
+    columnHelper.accessor('isCompleted', {
+      header: '',
       cell: (info) => (
-        <div className="font-medium text-left">
-          {info.getValue() || <span className="text-gray-400 dark:text-gray-600">Untitled</span>}
+        <div className="flex items-center justify-center w-6">
+          <input
+            type="checkbox"
+            checked={info.getValue() || false}
+            onChange={(e) => onToggleComplete?.(info.row.original.id, e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-400"
+          />
         </div>
       ),
     }),
+    columnHelper.accessor('title', {
+      header: 'Task',
+      cell: (info) => {
+        const isCompleted = info.row.original.isCompleted;
+        return (
+          <div className={`font-medium text-left ${
+            isCompleted ? 'text-gray-400 dark:text-gray-600' : ''
+          }`}>
+            <div className="relative">
+              {info.getValue() || <span className="text-gray-400 dark:text-gray-600">Untitled</span>}
+              {isCompleted && (
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-400 dark:border-gray-600"></div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      },
+    }),
     columnHelper.accessor('estimatedTime', {
       header: 'Est.',
+      cell: (info) => {
+        const isCompleted = info.row.original.isCompleted;
+        return (
+          <div className={`flex items-center justify-end space-x-1 ${
+            isCompleted ? 'text-gray-400 dark:text-gray-600' : 'text-gray-600 dark:text-gray-400'
+          }`}>
+            <div className="relative">
+              <span>{info.getValue()}</span>
+              {isCompleted && (
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-400 dark:border-gray-600"></div>
+                </div>
+              )}
+            </div>
+            <span className="text-xs">h</span>
+          </div>
+        );
+      },
+    }),
+    columnHelper.accessor('id', {
+      header: '',
       cell: (info) => (
-        <div className="flex items-center justify-end space-x-1 text-gray-600 dark:text-gray-400">
-          <span>{info.getValue()}</span>
-          <span className="text-xs">h</span>
+        <div className="w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => onDeleteTask?.(info.getValue())}
+            className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+          >
+            ×
+          </button>
         </div>
       ),
     }),
@@ -124,10 +182,11 @@ export const TaskTable: React.FC<TaskTableProps> = ({ tasks, onCreateTask }) => 
                 onDragOver={(e) => handleDragOver(e, row.original.id)}
                 onDragEnd={handleDragEnd}
               >
-                <td className="w-8 pl-3 pr-1 py-1"></td>
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className={`px-3 py-1 ${
-                    cell.column.id === 'title' ? 'text-left w-[70%]' : 'text-right w-[30%]'
+                    cell.column.id === 'title' ? 'text-left w-[60%]' : 
+                    cell.column.id === 'estimatedTime' ? 'text-right w-[20%]' :
+                    cell.column.id === 'isCompleted' ? 'w-[10%]' : 'w-[10%]'
                   }`}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
@@ -142,6 +201,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({ tasks, onCreateTask }) => 
       <div className="border-t dark:border-gray-700">
         <div className="px-3 py-2">
           <div className="flex gap-3 items-center h-[22px]">
+            <div className="w-6"></div> {/* Checkbox spacer */}
             <input
               id="new-task-title"
               type="text"
@@ -177,6 +237,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({ tasks, onCreateTask }) => 
               min="0"
             />
             <span className="text-xs text-gray-400 dark:text-gray-600 w-4">h</span>
+            <div className="w-6"></div> {/* Delete button spacer */}
           </div>
         </div>
       </div>
