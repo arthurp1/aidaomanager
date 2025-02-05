@@ -5,9 +5,8 @@ import {
   createColumnHelper,
   flexRender,
 } from '@tanstack/react-table';
-import { format } from 'date-fns';
 
-interface Task {
+interface SubTask {
   id: string;
   title: string;
   estimatedTime: number;
@@ -16,40 +15,25 @@ interface Task {
   createdAt: Date;
   updatedAt: Date;
   totalTimeSpent?: number;
-  category?: string;
-  priority?: 'low' | 'medium' | 'high';
+  roleId: string;
+  taskId: string;
 }
 
 interface TaskTableProps {
-  onTaskActivation: (tasks: Task[]) => void;
+  tasks: SubTask[];
+  onCreateTask: (task: { title: string; estimatedTime: number; domain: string }) => void;
 }
 
-interface EditingCell {
-  id: string;
-  field: keyof Task;
-}
+const columnHelper = createColumnHelper<SubTask>();
 
-const columnHelper = createColumnHelper<Task>();
-
-export const TaskTable: React.FC<TaskTableProps> = ({ onTaskActivation }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
-  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
-  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
+export const TaskTable: React.FC<TaskTableProps> = ({ tasks, onCreateTask }) => {
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
   const [newTask, setNewTask] = useState<{
     title: string;
     estimatedTime: number;
-    domain: string;
-    category: string;
-    priority: 'low' | 'medium' | 'high';
   }>({
     title: '',
     estimatedTime: 0,
-    domain: '',
-    category: '',
-    priority: 'medium',
   });
 
   const handleDragStart = (taskId: string) => {
@@ -65,12 +49,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({ onTaskActivation }) => {
 
     if (draggedIndex === hoverIndex) return;
 
-    setTasks(prev => {
-      const newTasks = [...prev];
-      const [draggedTask] = newTasks.splice(draggedIndex, 1);
-      newTasks.splice(hoverIndex, 0, draggedTask);
-      return newTasks;
-    });
+    // Note: We'll need to implement order persistence if needed
   };
 
   const handleDragEnd = () => {
@@ -78,58 +57,20 @@ export const TaskTable: React.FC<TaskTableProps> = ({ onTaskActivation }) => {
   };
 
   const columns = [
-    columnHelper.accessor('priority', {
-      header: '●',
-      cell: (info) => (
-        <div className="w-2 h-2 rounded-full"
-          style={{
-            backgroundColor: info.getValue() === 'high' ? '#ef4444' : 
-              info.getValue() === 'medium' ? '#f59e0b' : '#3b82f6'
-          }}
-        />
-      ),
-    }),
     columnHelper.accessor('title', {
       header: 'Task',
       cell: (info) => (
-        <EditableCell
-          value={info.getValue()}
-          row={info.row.original}
-          field="title"
-          onEdit={handleEdit}
-          isEditing={editingCell?.id === info.row.original.id && editingCell?.field === 'title'}
-          className="font-medium"
-        />
+        <div className="font-medium text-left">
+          {info.getValue() || <span className="text-gray-400 dark:text-gray-600">Untitled</span>}
+        </div>
       ),
     }),
     columnHelper.accessor('estimatedTime', {
       header: 'Est.',
       cell: (info) => (
-        <div className="flex items-center space-x-1 text-gray-600 dark:text-gray-400">
-          <EditableCell
-            value={info.getValue().toString()}
-            row={info.row.original}
-            field="estimatedTime"
-            onEdit={handleEdit}
-            type="number"
-            isEditing={editingCell?.id === info.row.original.id && editingCell?.field === 'estimatedTime'}
-            className="w-12"
-          />
+        <div className="flex items-center justify-end space-x-1 text-gray-600 dark:text-gray-400">
+          <span>{info.getValue()}</span>
           <span className="text-xs">h</span>
-        </div>
-      ),
-    }),
-    columnHelper.accessor('domain', {
-      header: 'Domain',
-      cell: (info) => (
-        <div className="max-w-[120px] truncate text-gray-500 dark:text-gray-400 text-sm">
-          <EditableCell
-            value={info.getValue()}
-            row={info.row.original}
-            field="domain"
-            onEdit={handleEdit}
-            isEditing={editingCell?.id === info.row.original.id && editingCell?.field === 'domain'}
-          />
         </div>
       ),
     }),
@@ -141,195 +82,53 @@ export const TaskTable: React.FC<TaskTableProps> = ({ onTaskActivation }) => {
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const handleEdit = (taskId: string, field: keyof Task, value: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              [field]: field === 'estimatedTime' ? Number(value) : value,
-              updatedAt: new Date(),
-            }
-          : task
-      )
-    );
-    setEditingCell(null);
-    setEditValue('');
-  };
-
-  const EditableCell: React.FC<{
-    value: string;
-    row: Task;
-    field: keyof Task;
-    onEdit: (taskId: string, field: keyof Task, value: string) => void;
-    type?: string;
-    isEditing: boolean;
-    className?: string;
-  }> = ({ value, row, field, onEdit, type = 'text', isEditing, className = '' }) => {
-    if (isEditing) {
-      return (
-        <input
-          type={type}
-          className={`w-full py-0.5 bg-transparent border-b border-blue-500 focus:outline-none dark:text-gray-100 ${className}`}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={() => {
-            if (editValue.trim() !== '') {
-              onEdit(row.id, field, editValue);
-            }
-            setEditingCell(null);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && editValue.trim() !== '') {
-              onEdit(row.id, field, editValue);
-            } else if (e.key === 'Escape') {
-              setEditingCell(null);
-              setEditValue('');
-            }
-          }}
-          autoFocus
-          step={type === 'number' ? '0.5' : undefined}
-          min={type === 'number' ? '0' : undefined}
-        />
-      );
-    }
-
-    return (
-      <div
-        className={`cursor-text py-0.5 ${className}`}
-        onClick={() => {
-          setEditingCell({ id: row.id, field });
-          setEditValue(value);
-        }}
-      >
-        {value}
-      </div>
-    );
-  };
-
-  const handleTaskSelection = (taskId: string) => {
-    setSelectedTasks((prev) =>
-      prev.includes(taskId)
-        ? prev.filter((id) => id !== taskId)
-        : [...prev, taskId]
-    );
-  };
-
-  const getTotalEstimatedTime = () => {
-    return tasks
-      .filter((task) => selectedTasks.includes(task.id))
-      .reduce((sum, task) => sum + task.estimatedTime, 0);
-  };
-
-  const handleActivateTasks = () => {
-    const tasksToActivate = tasks
-      .filter((task) => selectedTasks.includes(task.id))
-      .map((task) => ({
-        ...task,
-        status: 'active' as const,
-      }));
-    
-    onTaskActivation(tasksToActivate);
-    setTasks((prev) =>
-      prev.map((task) => ({
-        ...task,
-        status: selectedTasks.includes(task.id) ? 'active' : task.status,
-      }))
-    );
-    setSelectedTasks([]);
-    setIsConfirmationOpen(false);
-  };
-
   const handleCreateTask = () => {
-    const newTaskData: Task = {
-      id: crypto.randomUUID(),
+    if (!newTask.title.trim()) {
+      // Focus the title input if empty
+      const titleInput = document.getElementById('new-task-title');
+      if (titleInput) {
+        titleInput.focus();
+      }
+      return;
+    }
+    
+    onCreateTask({
       ...newTask,
-      status: 'inactive',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      totalTimeSpent: 0,
-    };
+      domain: '',
+    });
 
-    setTasks((prev) => [...prev, newTaskData]);
     setNewTask({
       title: '',
       estimatedTime: 0,
-      domain: '',
-      category: '',
-      priority: 'medium',
     });
+
+    // Focus back on title input after creating
+    const titleInput = document.getElementById('new-task-title');
+    if (titleInput) {
+      titleInput.focus();
+    }
   };
 
   return (
-    <div className="py-2">
-      {/* Task Creation Form */}
-      <div className="px-2 mb-2">
-        <div className="flex gap-2">
-          <select
-            className="w-2 h-2 rounded-full bg-blue-500 border-0 appearance-none cursor-pointer focus:outline-none"
-            value={newTask.priority}
-            onChange={(e) => setNewTask({ ...newTask, priority: e.target.value as 'low' | 'medium' | 'high' })}
-            style={{
-              backgroundColor: newTask.priority === 'high' ? '#ef4444' : 
-                newTask.priority === 'medium' ? '#f59e0b' : '#3b82f6'
-            }}
-          >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Add a task..."
-            className="flex-1 p-1.5 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm"
-            value={newTask.title}
-            onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newTask.title.trim() !== '') {
-                handleCreateTask();
-              }
-            }}
-          />
-          <input
-            type="number"
-            placeholder="hrs"
-            className="w-12 p-1.5 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm"
-            value={newTask.estimatedTime || ''}
-            onChange={(e) => setNewTask({ ...newTask, estimatedTime: Number(e.target.value) })}
-            step="0.5"
-            min="0"
-          />
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Task Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full">
+      <div className="flex-1 overflow-y-auto">
+        <table className="min-w-full table-fixed">
           <tbody>
             {table.getRowModel().rows.map((row) => (
               <tr 
                 key={row.id} 
-                className="group hover:bg-gray-50 dark:hover:bg-dark-hover"
+                className="group hover:bg-gray-50 dark:hover:bg-dark-hover cursor-move"
                 draggable
                 onDragStart={() => handleDragStart(row.original.id)}
                 onDragOver={(e) => handleDragOver(e, row.original.id)}
                 onDragEnd={handleDragEnd}
               >
-                <td className="w-8 p-2 cursor-move opacity-30 group-hover:opacity-100 transition-opacity">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 4a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm8 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM8 12a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm8 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm-8 8a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm8 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-                  </svg>
-                </td>
-                <td className="w-8 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <input
-                    type="checkbox"
-                    checked={selectedTasks.includes(row.original.id)}
-                    onChange={() => handleTaskSelection(row.original.id)}
-                    className="dark:bg-dark-bg dark:border-gray-600"
-                  />
-                </td>
+                <td className="w-8 pl-3 pr-1 py-1"></td>
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="p-2">
+                  <td key={cell.id} className={`px-3 py-1 ${
+                    cell.column.id === 'title' ? 'text-left w-[70%]' : 'text-right w-[30%]'
+                  }`}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -339,48 +138,48 @@ export const TaskTable: React.FC<TaskTableProps> = ({ onTaskActivation }) => {
         </table>
       </div>
 
-      {/* Activation Controls */}
-      {selectedTasks.length > 0 && (
-        <div className="p-2 border-t dark:border-gray-700">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {getTotalEstimatedTime()} hrs
-            </div>
-            <button
-              onClick={() => setIsConfirmationOpen(true)}
-              className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
-            >
-              Start
-            </button>
+      {/* Task Creation Form */}
+      <div className="border-t dark:border-gray-700">
+        <div className="px-3 py-2">
+          <div className="flex gap-3 items-center h-[22px]">
+            <input
+              id="new-task-title"
+              type="text"
+              placeholder="Add a subtask..."
+              className="flex-1 h-full py-0.5 px-0 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
+              value={newTask.title}
+              onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newTask.title.trim()) {
+                  handleCreateTask();
+                }
+              }}
+            />
+            <input
+              type="number"
+              placeholder="0"
+              className="w-12 h-full py-0.5 px-0 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm text-right placeholder:text-gray-400 dark:placeholder:text-gray-600"
+              value={newTask.estimatedTime || ''}
+              onChange={(e) => setNewTask({ ...newTask, estimatedTime: Number(e.target.value) })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (!newTask.title.trim()) {
+                    const titleInput = document.getElementById('new-task-title');
+                    if (titleInput) {
+                      titleInput.focus();
+                    }
+                    return;
+                  }
+                  handleCreateTask();
+                }
+              }}
+              step="0.5"
+              min="0"
+            />
+            <span className="text-xs text-gray-400 dark:text-gray-600 w-4">h</span>
           </div>
         </div>
-      )}
-
-      {/* Confirmation Modal */}
-      {isConfirmationOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-dark-surface p-4 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-2">Start Tracking</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {getTotalEstimatedTime()} hours total
-            </p>
-            <div className="mt-4 flex justify-end space-x-2">
-              <button
-                onClick={() => setIsConfirmationOpen(false)}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleActivateTasks}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
-              >
-                Start
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }; 

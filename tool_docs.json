@@ -1,0 +1,42 @@
+{
+  "design": {
+    "canva.com": "Online graphic design platform",
+    "figma.com": "Collaborative interface design tool",
+    "miro.com": "Online collaborative whiteboard"
+  },
+  "social": {
+    "web.whatsapp.com": "Web-based WhatsApp messenger",
+    "discord.com/app": "Chat and community platform",
+    "slack.com": "Business communication platform",
+    "teams.microsoft.com": "Microsoft Teams collaboration tool",
+    "telegram.org/webapp": "Web-based Telegram messenger",
+    "messenger.com": "Facebook Messenger web interface",
+    "linkedin.com": "Professional networking platform"
+  },
+  "productivity": {
+    "notion.so": "All-in-one workspace",
+    "trello.com": "Project management tool",
+    "asana.com": "Team project management",
+    "monday.com": "Work management platform",
+    "clickup.com": "Project management software",
+    "todoist.com": "Task management tool",
+    "evernote.com": "Note-taking app"
+  },
+  "development": {
+    "github.com": "Code hosting platform",
+    "gitlab.com": "DevOps platform",
+    "bitbucket.org": "Git code management",
+    "codepen.io": "Front-end development playground",
+    "codesandbox.io": "Online code editor",
+    "replit.com": "Collaborative coding platform",
+    "stackoverflow.com": "Developer Q&A community"
+  },
+  "video_conferencing": {
+    "zoom.us": "Video conferencing platform",
+    "meet.google.com": "Google Meet video calls"
+  },
+  "documentation": {
+    "docs.google.com": "Google Docs online editor",
+    "confluence.atlassian.com": "Team documentation"
+  }
+} 
