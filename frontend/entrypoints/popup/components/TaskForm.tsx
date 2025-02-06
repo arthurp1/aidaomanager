@@ -225,7 +225,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
           if (tool.webtrack?.search?.available) {
             requirements.push({
-              id: Math.random().toString(36).substr(2, 9),
+            id: Math.random().toString(36).substr(2, 9),
               emoji: '📚',
               alternativeEmojis: ['✍️', '🔍'],
               title: 'Documentation Quality',
@@ -242,7 +242,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         // Research tools requirements
         if (tool.category === 'research') {
           requirements.push({
-            id: Math.random().toString(36).substr(2, 9),
+          id: Math.random().toString(36).substr(2, 9),
             emoji: '🔬',
             alternativeEmojis: ['📖', '🎓'],
             title: 'Research Depth',
