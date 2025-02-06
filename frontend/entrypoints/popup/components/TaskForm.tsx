@@ -361,33 +361,16 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
 
         {/* Requirements Section */}
         <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Requirements</span>
-            <button
-              onClick={generateRequirements}
-              disabled={isGeneratingRequirements || !newTaskName.trim()}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 rounded border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors disabled:opacity-50"
-            >
-              {isGeneratingRequirements ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-7 7-7-7m14-8l-7 7-7-7" />
-                </svg>
-              )}
-              <span>Add Requirements</span>
-            </button>
-          </div>
 
           {/* Requirements list */}
           <div className="flex flex-col gap-1">
             {requirements.map((req) => (
               <div 
                 key={req.id}
-                className="group flex items-center gap-2 py-1 px-2 hover:bg-gray-50 dark:hover:bg-dark-hover/50 rounded"
+                className="group flex items-start gap-2 py-2 px-2 hover:bg-gray-50 dark:hover:bg-dark-hover/50 rounded text-left"
               >
                 {/* Emoji section */}
-                <div className="relative">
+                <div className="relative mt-0.5">
                   <button
                     onClick={() => setHoveredRequirement(hoveredRequirement === req.id ? null : req.id)}
                     className="text-lg hover:bg-gray-100 dark:hover:bg-dark-hover p-0.5 rounded"
@@ -417,13 +400,13 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
 
                 {/* Title and measure */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm dark:text-gray-200 truncate">{req.title}</div>
+                  <div className="text-sm font-medium dark:text-gray-200 text-left">{req.title}</div>
                   <div className="relative">
                     <button
                       onClick={() => setShowMeasureDropdown(showMeasureDropdown === req.id ? null : req.id)}
-                      className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 truncate max-w-full"
+                      className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-left"
                     >
-                      {req.measure} ▾
+                      Measured by: {req.measure} ▾
                     </button>
                     {showMeasureDropdown === req.id && (
                       <div className="absolute top-full left-0 mt-1 bg-white dark:bg-dark-surface rounded shadow-lg p-1 z-10 min-w-[150px]">
@@ -436,7 +419,7 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
                               ));
                               setShowMeasureDropdown(null);
                             }}
-                            className="block w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-dark-hover rounded truncate"
+                            className="block w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-dark-hover rounded"
                           >
                             {measure}
                           </button>
@@ -446,15 +429,47 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
                   </div>
                 </div>
 
-                {/* Delete button */}
-                <button
-                  onClick={() => setRequirements(reqs => reqs.filter(r => r.id !== req.id))}
-                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-opacity ml-1"
-                >
-                  ×
-                </button>
+                {/* Accept/Delete buttons */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setRequirements(reqs => reqs.filter(r => r.id !== req.id))}
+                    className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 p-1 rounded"
+                    title="Remove suggestion"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             ))}
+          </div>
+
+          {/* Add/Clear buttons */}
+          <div className="flex items-center justify-between mt-2">
+            <button
+              onClick={generateRequirements}
+              disabled={isGeneratingRequirements || !newTaskName.trim()}
+              className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-hover/50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGeneratingRequirements ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
+              <span>Suggest Requirements</span>
+            </button>
+
+            {requirements.length > 0 && (
+              <button
+                onClick={() => setRequirements([])}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                Clear all
+              </button>
+            )}
           </div>
         </div>
 
