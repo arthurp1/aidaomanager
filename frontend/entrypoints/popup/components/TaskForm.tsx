@@ -164,6 +164,7 @@ Available Tools and Their Metrics:
 ${toolsContext || 'No specific tools selected'}
 
 Based on the task and the available tools' metrics, generate exactly 3 requirements that will help measure the success of this task.
+${requirements.length > 0 ? `\nNote: Generate requirements that are different from the existing ${requirements.length} requirements to provide additional coverage.` : ''}
 
 For each requirement:
 1. Generate 3 relevant emojis that represent the requirement
@@ -172,7 +173,7 @@ For each requirement:
 
 The measures should be specific and quantifiable using the tools' available metrics and features.
 
-Return the response in this exact JSON format:
+Return as JSON array with format:
 [
   {
     "emoji": "🎯",
@@ -212,13 +213,14 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
           };
         });
 
-        setRequirements(validatedRequirements);
+        // Append new requirements instead of replacing
+        setRequirements(prev => [...prev, ...validatedRequirements]);
       } catch (parseError) {
         console.error('Error parsing Gemini response:', parseError);
         // Fallback requirements if parsing fails
-        setRequirements([
+        const fallbackRequirements = [
           {
-            id: '1',
+            id: Math.random().toString(36).substr(2, 9),
             emoji: '📋',
             alternativeEmojis: ['✅', '📝'],
             title: 'Basic Requirement',
@@ -226,7 +228,7 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
             alternativeMeasures: ['Progress percentage', 'Time spent']
           },
           {
-            id: '2',
+            id: Math.random().toString(36).substr(2, 9),
             emoji: '🎯',
             alternativeEmojis: ['🔍', '⭐'],
             title: 'Quality Check',
@@ -234,21 +236,23 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
             alternativeMeasures: ['Error count', 'Feedback rating']
           },
           {
-            id: '3',
+            id: Math.random().toString(36).substr(2, 9),
             emoji: '⏱️',
             alternativeEmojis: ['📊', '💪'],
             title: 'Performance Metric',
             measure: 'Time to complete',
             alternativeMeasures: ['Resource usage', 'Efficiency score']
           }
-        ]);
+        ];
+        // Append fallback requirements instead of replacing
+        setRequirements(prev => [...prev, ...fallbackRequirements]);
       }
     } catch (error) {
       console.error('Error generating requirements:', error);
-      // Set default requirements on error
-      setRequirements([
+      // Append default requirements instead of replacing
+      const defaultRequirements = [
         {
-          id: '1',
+          id: Math.random().toString(36).substr(2, 9),
           emoji: '📋',
           alternativeEmojis: ['✅', '📝'],
           title: 'Basic Requirement',
@@ -256,7 +260,7 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
           alternativeMeasures: ['Progress percentage', 'Time spent']
         },
         {
-          id: '2',
+          id: Math.random().toString(36).substr(2, 9),
           emoji: '🎯',
           alternativeEmojis: ['🔍', '⭐'],
           title: 'Quality Check',
@@ -264,14 +268,15 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
           alternativeMeasures: ['Error count', 'Feedback rating']
         },
         {
-          id: '3',
+          id: Math.random().toString(36).substr(2, 9),
           emoji: '⏱️',
           alternativeEmojis: ['📊', '💪'],
           title: 'Performance Metric',
           measure: 'Time to complete',
           alternativeMeasures: ['Resource usage', 'Efficiency score']
         }
-      ]);
+      ];
+      setRequirements(prev => [...prev, ...defaultRequirements]);
     } finally {
       setIsGeneratingRequirements(false);
     }
@@ -570,10 +575,21 @@ Return as JSON array with format:
                           {req.alternativeMeasures.map((measure, i) => (
                             <button
                               key={i}
-                              onClick={() => {
+                              onClick={async () => {
+                                // First update the measure
+                                const updatedReq = {
+                                  ...req,
+                                  measure,
+                                  isAccepted: false, // Reset acceptance state
+                                  rules: [] // Clear existing rules
+                                };
+                                
+                                // Update the requirement with new measure
                                 setRequirements(reqs => reqs.map(r => 
-                                  r.id === req.id ? { ...r, measure } : r
+                                  r.id === req.id ? updatedReq : r
                                 ));
+                                
+                                // Close the dropdown
                                 setShowMeasureDropdown(null);
                               }}
                               className="block w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-dark-hover rounded"

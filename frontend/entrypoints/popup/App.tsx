@@ -36,6 +36,7 @@ interface Task {
   estimatedTime: number;
   tools: string[];
   trackedTime: number;
+  requirements: string[];
 }
 
 interface Role {
@@ -43,6 +44,31 @@ interface Role {
   name: string;
   createdAt: Date;
   tools: string[];
+}
+
+interface Rule {
+  id: string;
+  logic: string;
+  pattern: {
+    condition: 'exactly' | 'at_least';
+    threshold: number;
+    metric: string;
+    timePattern: {
+      type: 'in_a_row' | 'in_week' | 'in_month' | 'before_date' | 'by_time' | 'every_x_days';
+      value: number;
+      target?: string;
+    };
+  };
+}
+
+interface Requirement {
+  id: string;
+  rules: Rule[];
+  emoji: string;
+  alternativeEmojis: string[];
+  title: string;
+  description: string;
+  measure: string;
 }
 
 function App() {
@@ -54,6 +80,7 @@ function App() {
     createdAt: new Date(),
     tools: []
   }]);
+  const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('everyone');
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
@@ -68,6 +95,187 @@ function App() {
   const [isDark, setIsDark] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [currentUrl, setCurrentUrl] = useState<string>('');
+
+  // Load data from storage when component mounts
+  useEffect(() => {
+    const loadStoredData = async () => {
+      try {
+        // Check if we're in a Chrome extension context
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        const data = await chrome.storage.local.get([
+          'tasks',
+          'subtasks',
+          'roles',
+          'selectedRole',
+          'activeTask',
+          'elapsedTime'
+        ]);
+
+        // Convert stored ISO date strings back to Date objects
+        if (data.tasks) {
+          const tasksWithDates = data.tasks.map((task: any) => ({
+            ...task,
+            createdAt: new Date(task.createdAt)
+          }));
+          setTasks(tasksWithDates);
+        }
+        if (data.subtasks) {
+          const subtasksWithDates = data.subtasks.map((subtask: any) => ({
+            ...subtask,
+            createdAt: new Date(subtask.createdAt),
+            updatedAt: new Date(subtask.updatedAt)
+          }));
+          setSubtasks(subtasksWithDates);
+        }
+        if (data.roles) {
+          // Ensure 'everyone' role always exists
+          const hasEveryoneRole = data.roles.some((role: Role) => role.id === 'everyone');
+          const rolesWithDates = data.roles.map((role: any) => ({
+            ...role,
+            createdAt: new Date(role.createdAt)
+          }));
+          if (!hasEveryoneRole) {
+            rolesWithDates.push({
+              id: 'everyone',
+              name: 'Everyone',
+              createdAt: new Date(),
+              tools: []
+            });
+          }
+          setRoles(rolesWithDates);
+        }
+        if (data.selectedRole) setSelectedRole(data.selectedRole);
+        if (data.activeTask && data.activeTask.createdAt) {
+          const activeTaskWithDate = {
+            ...data.activeTask,
+            createdAt: new Date(data.activeTask.createdAt)
+          };
+          setActiveTask(activeTaskWithDate);
+        }
+        if (data.elapsedTime) setElapsedTime(data.elapsedTime);
+      } catch (error) {
+        console.error('Error loading stored data:', error);
+      }
+    };
+
+    loadStoredData();
+  }, []);
+
+  // Save tasks whenever they change
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        const tasksForStorage = tasks.map(task => ({
+          ...task,
+          createdAt: task.createdAt.toISOString()
+        }));
+        await chrome.storage.local.set({ tasks: tasksForStorage });
+      } catch (error) {
+        console.error('Error saving tasks:', error);
+      }
+    };
+
+    saveData();
+  }, [tasks]);
+
+  // Save subtasks whenever they change
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        const subtasksForStorage = subtasks.map(subtask => ({
+          ...subtask,
+          createdAt: subtask.createdAt.toISOString(),
+          updatedAt: subtask.updatedAt.toISOString()
+        }));
+        await chrome.storage.local.set({ subtasks: subtasksForStorage });
+      } catch (error) {
+        console.error('Error saving subtasks:', error);
+      }
+    };
+
+    saveData();
+  }, [subtasks]);
+
+  // Save roles whenever they change
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        const rolesForStorage = roles.map(role => ({
+          ...role,
+          createdAt: role.createdAt.toISOString()
+        }));
+        await chrome.storage.local.set({ roles: rolesForStorage });
+      } catch (error) {
+        console.error('Error saving roles:', error);
+      }
+    };
+
+    saveData();
+  }, [roles]);
+
+  // Save selectedRole whenever it changes
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        await chrome.storage.local.set({ selectedRole });
+      } catch (error) {
+        console.error('Error saving selected role:', error);
+      }
+    };
+
+    saveData();
+  }, [selectedRole]);
+
+  // Save activeTask and elapsedTime whenever they change
+  useEffect(() => {
+    const saveData = async () => {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        const activeTaskForStorage = activeTask ? {
+          ...activeTask,
+          createdAt: activeTask.createdAt.toISOString()
+        } : null;
+        await chrome.storage.local.set({ 
+          activeTask: activeTaskForStorage,
+          elapsedTime 
+        });
+      } catch (error) {
+        console.error('Error saving active task and elapsed time:', error);
+      }
+    };
+
+    saveData();
+  }, [activeTask, elapsedTime]);
 
   // Tool suggestions data
   const toolCategories = {
@@ -392,6 +600,7 @@ function App() {
       estimatedTime: newTask.estimatedTime,
       tools: newTask.tools,
       trackedTime: 0,
+      requirements: [],
     };
 
     setTasks(prev => [...prev, taskData]);
@@ -454,7 +663,15 @@ function App() {
 
   const handlePlayTask = (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
-    setActiveTask(task);
+    if (activeTask?.id === task.id) {
+      // If clicking the same task, stop tracking
+      setActiveTask(null);
+      setElapsedTime(0);
+    } else {
+      // Start tracking new task
+      setActiveTask(task);
+      setElapsedTime(0);
+    }
     // Collapse the task in the backlog when it's played
     setTasks(prev => prev.map(t => 
       t.id === task.id ? { ...t, isCollapsed: true } : t
@@ -469,6 +686,171 @@ function App() {
 
   const handleDeleteSubtask = (subtaskId: string) => {
     setSubtasks(prev => prev.filter(subtask => subtask.id !== subtaskId));
+  };
+
+  // Add useEffect for timer
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (activeTask) {
+      intervalId = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [activeTask]);
+
+  // Add function to format time
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    
+    const pad = (num: number): string => num.toString().padStart(2, '0');
+    
+    if (hours > 0) {
+      return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`;
+    }
+    return `${pad(minutes)}:${pad(remainingSeconds)}`;
+  };
+
+  // Add effect to get current URL and auto-activate matching tasks
+  useEffect(() => {
+    const getCurrentUrl = async () => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentTab = tabs[0];
+        if (currentTab?.url) {
+          console.log('Current URL:', currentTab.url);
+          setCurrentUrl(currentTab.url);
+
+          // Check if the current URL matches any task's tools
+          const matchingTask = tasks.find(task => 
+            task.tools.some(tool => {
+              // Create a URL object for proper comparison
+              try {
+                // Ensure we have a valid URL
+                if (!currentTab.url) return false;
+                const currentHostname = new URL(currentTab.url).hostname;
+                const toolHostname = tool.toLowerCase();
+                return currentHostname.includes(toolHostname);
+              } catch {
+                return false;
+              }
+            })
+          );
+
+          // If we found a matching task and it's not already active
+          if (matchingTask && (!activeTask || activeTask.id !== matchingTask.id)) {
+            console.log('Auto-activating task:', matchingTask.title);
+            setActiveTask(matchingTask);
+            setElapsedTime(0); // Reset timer for the new task
+          }
+        }
+      } catch (error) {
+        console.error('Error getting current URL:', error);
+      }
+    };
+
+    getCurrentUrl();
+    // Check URL periodically for changes
+    const intervalId = setInterval(getCurrentUrl, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [tasks, activeTask]); // Add dependencies for tasks and activeTask
+
+  // Add export function
+  const handleExportData = () => {
+    // Prepare data for export
+    const exportData = {
+      tasks: tasks.map(task => {
+        // Create a new object without isCollapsed
+        const { isCollapsed, ...taskWithoutCollapsed } = task;
+        return {
+          ...taskWithoutCollapsed,
+          createdAt: task.createdAt.toISOString(),
+          // Include linked requirements data
+          requirementsData: requirements
+            .filter(req => task.requirements.includes(req.id))
+            .map(req => ({
+              ...req,
+              rules: req.rules?.map(rule => ({
+                ...rule,
+                pattern: {
+                  ...rule.pattern,
+                  timePattern: {
+                    ...rule.pattern.timePattern,
+                    target: rule.pattern.timePattern.target ? new Date(rule.pattern.timePattern.target).toISOString() : undefined
+                  }
+                }
+              }))
+            }))
+        };
+      }),
+      subtasks: subtasks.map(subtask => ({
+        ...subtask,
+        createdAt: subtask.createdAt.toISOString(),
+        updatedAt: subtask.updatedAt.toISOString()
+      })),
+      roles: roles.map(role => ({
+        ...role,
+        createdAt: role.createdAt.toISOString()
+      })),
+      requirements: requirements.map(requirement => ({
+        ...requirement,
+        rules: requirement.rules?.map(rule => ({
+          ...rule,
+          pattern: {
+            ...rule.pattern,
+            timePattern: {
+              ...rule.pattern.timePattern,
+              target: rule.pattern.timePattern.target ? new Date(rule.pattern.timePattern.target).toISOString() : undefined
+            }
+          }
+        }))
+      })),
+      selectedRole,
+      activeTask: activeTask ? (() => {
+        const { isCollapsed, ...activeWithoutCollapsed } = activeTask;
+        return {
+          ...activeWithoutCollapsed,
+          createdAt: activeTask.createdAt.toISOString(),
+          // Include linked requirements data for active task
+          requirementsData: requirements
+            .filter(req => activeTask.requirements.includes(req.id))
+            .map(req => ({
+              ...req,
+              rules: req.rules?.map(rule => ({
+                ...rule,
+                pattern: {
+                  ...rule.pattern,
+                  timePattern: {
+                    ...rule.pattern.timePattern,
+                    target: rule.pattern.timePattern.target ? new Date(rule.pattern.timePattern.target).toISOString() : undefined
+                  }
+                }
+              }))
+            }))
+        };
+      })() : null,
+      elapsedTime
+    };
+
+    // Create and download file
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `aidao_export_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -491,9 +873,14 @@ function App() {
                   </button>
                   <div className="flex items-center gap-2">
                     <h2 className="font-medium">{activeTask.title}</h2>
-                    <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                      Manual tracking
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                        Manual tracking
+                      </span>
+                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        {formatTime(elapsedTime)}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -658,6 +1045,43 @@ function App() {
         </div>
       </div>
 
+      {/* Active Task Tools URLs and Current URL */}
+      <div className="border-t dark:border-gray-700 bg-white dark:bg-dark-surface">
+        {activeTask && activeTask.tools.length > 0 && (
+          <div className="px-3 py-1 border-b dark:border-gray-700">
+            <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 overflow-x-auto">
+              {activeTask.tools.map(tool => (
+                <a
+                  key={tool}
+                  href={`https://${tool}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-600 dark:hover:text-gray-300 whitespace-nowrap"
+                >
+                  {tool}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="px-3 py-1">
+          <div className="text-xs text-gray-400 dark:text-gray-500 truncate" style={{ minHeight: '1.25rem' }}>
+            {currentUrl ? (
+              <a 
+                href={currentUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                {currentUrl}
+              </a>
+            ) : (
+              <span>No active tab</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Bottom Navigation */}
       <div className="h-12 border-t dark:border-gray-700 bg-white dark:bg-dark-surface flex items-center justify-around px-3">
         <button
@@ -815,6 +1239,31 @@ function App() {
       {/* AI Assistant Modal */}
       {showAIAssistant && (
         <AIAssistant onClose={() => setShowAIAssistant(false)} />
+      )}
+
+      {currentView === 'profile' && (
+        <div className="flex-1 bg-white dark:bg-dark-surface p-4">
+          <div className="max-w-lg mx-auto">
+            <h2 className="text-lg font-medium mb-4">User Profile</h2>
+            
+            {/* Export Data Section */}
+            <div className="mb-6 p-4 border dark:border-gray-700 rounded-lg">
+              <h3 className="text-sm font-medium mb-2">Data Management</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Export your tasks, roles, and tracking data as a JSON file
+              </p>
+              <button
+                onClick={handleExportData}
+                className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export Data
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
