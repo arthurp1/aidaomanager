@@ -33,9 +33,11 @@ export interface Role {
 
 export interface Rule {
   id: string;
+  text: string;
+  performanceLevel: '😍' | '👋' | '🤔';
   logic: string;
   pattern: {
-    condition: 'exactly' | 'at_least';
+    condition: 'more_than' | 'less_than' | 'exactly' | 'at_least' | 'at_most';
     threshold: number;
     metric: string;
     timePattern: {
@@ -54,4 +56,7 @@ export interface Requirement {
   title: string;
   description: string;
   measure: string;
+  alternativeMeasures: string[];
+  isAccepted?: boolean;
+  severity: string;
 } 

@@ -15,38 +15,61 @@ interface DBSchema {
 
 class DatabaseService {
   private db: IDBDatabase | null = null;
+  private isInitializing: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+    // If already initialized, return immediately
+    if (this.db) return;
+    
+    // If initialization is in progress, return the existing promise
+    if (this.initPromise) return this.initPromise;
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve();
-      };
+    this.isInitializing = true;
+    this.initPromise = new Promise((resolve, reject) => {
+      try {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Create object stores if they don't exist
-        if (!db.objectStoreNames.contains('tasks')) {
-          db.createObjectStore('tasks', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('subtasks')) {
-          db.createObjectStore('subtasks', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('roles')) {
-          db.createObjectStore('roles', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('requirements')) {
-          db.createObjectStore('requirements', { keyPath: 'id' });
-        }
-        if (!db.objectStoreNames.contains('state')) {
-          db.createObjectStore('state', { keyPath: 'id' });
-        }
-      };
+        request.onerror = () => {
+          this.isInitializing = false;
+          this.initPromise = null;
+          reject(request.error);
+        };
+
+        request.onsuccess = () => {
+          this.db = request.result;
+          this.isInitializing = false;
+          resolve();
+        };
+
+        request.onupgradeneeded = (event) => {
+          const db = (event.target as IDBOpenDBRequest).result;
+          
+          // Create object stores if they don't exist
+          if (!db.objectStoreNames.contains('tasks')) {
+            db.createObjectStore('tasks', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('subtasks')) {
+            db.createObjectStore('subtasks', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('roles')) {
+            db.createObjectStore('roles', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('requirements')) {
+            db.createObjectStore('requirements', { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains('state')) {
+            db.createObjectStore('state', { keyPath: 'id' });
+          }
+        };
+      } catch (error) {
+        this.isInitializing = false;
+        this.initPromise = null;
+        reject(error);
+      }
     });
+
+    return this.initPromise;
   }
 
   private getStore(storeName: string, mode: IDBTransactionMode = 'readonly'): IDBObjectStore {

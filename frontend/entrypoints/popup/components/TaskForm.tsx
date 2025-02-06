@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Rule, Requirement } from '../types';
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
@@ -51,37 +52,21 @@ interface RulePattern {
   timePattern: TimePattern;
 }
 
-interface Rule {
-  id: string;
-  text: string;
-  performanceLevel: '😍' | '👋' | '🤔';
-  logic: string;
-  pattern?: RulePattern;
-}
-
-interface Requirement {
-  id: string;
-  emoji: string;
-  alternativeEmojis: string[];
-  title: string;
-  measure: string;
-  alternativeMeasures: string[];
-  isAccepted?: boolean;
-  rules?: Rule[];
-}
-
 interface GeneratedRule {
   performanceLevel: '😍' | '👋' | '🤔';
   text: string;
   logic: string;
 }
 
+// Type for the form input that excludes the description field
+type RequirementFormData = Omit<Requirement, 'description'>;
+
 interface TaskFormProps {
   onCreateTask: (task: { 
     title: string; 
     estimatedTime: number; 
     tools: string[];
-    requirements: Requirement[];
+    requirements: RequirementFormData[];
   }) => void;
   onCancel: () => void;
   toolCategories: Record<string, Record<string, any>>;
@@ -128,155 +113,160 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
       console.log('Tools info for prompt:', toolsInfo);
 
-      const toolsContext = toolsInfo.map(tool => {
-        const metrics = [];
+      // Generate tool-specific requirements
+      const requirements = toolsInfo.map(tool => {
+        const requirements = [];
         
-        // Extract potential metrics from tool documentation
-        if (tool.webtrack?.multitask_chance) {
-          metrics.push(`multitasking efficiency (${tool.webtrack.multitask_chance} chance)`);
+        // Design tools requirements
+        if (tool.category === 'design') {
+          requirements.push({
+            id: Math.random().toString(36).substr(2, 9),
+            emoji: '🎨',
+            alternativeEmojis: ['✨', '👁️'],
+            title: 'Design Quality',
+            measure: 'User feedback rating (min 4.5/5)',
+            alternativeMeasures: [
+              'Design review score (min 90%)',
+              'User engagement metrics'
+            ],
+            severity: 'high'
+          });
+          
+          if (tool.webtrack?.project_keywords?.includes('brand')) {
+            requirements.push({
+              id: Math.random().toString(36).substr(2, 9),
+              emoji: '🎯',
+              alternativeEmojis: ['🔍', '📐'],
+              title: 'Brand Consistency',
+              measure: 'Brand compliance score (min 95%)',
+              alternativeMeasures: [
+                'Style guide adherence rate',
+                'Brand audit score'
+              ],
+              severity: 'high'
+            });
+          }
         }
-        if (tool.webtrack?.search?.available) {
-          metrics.push('search effectiveness');
-        }
-        if (tool.api?.endpoints) {
-          tool.api.endpoints.forEach(endpoint => {
-            if (endpoint.input_params) {
-              Object.entries(endpoint.input_params).forEach(([param, type]) => {
-                if (type === 'number') {
-                  metrics.push(`${param} metric`);
-                }
-              });
-            }
+        
+        // Development tools requirements
+        if (tool.category === 'development') {
+          requirements.push({
+            id: Math.random().toString(36).substr(2, 9),
+            emoji: '⚡',
+            alternativeEmojis: ['🔧', '🛠️'],
+            title: 'Code Quality',
+            measure: 'Code review rating (min 4/5)',
+            alternativeMeasures: [
+              'Static analysis score (min 85%)',
+              'Test coverage (min 80%)'
+            ],
+            severity: 'high'
+          });
+
+          requirements.push({
+            id: Math.random().toString(36).substr(2, 9),
+            emoji: '🚀',
+            alternativeEmojis: ['⚙️', '📊'],
+            title: 'Code Efficiency',
+            measure: 'Performance score (min 90/100)',
+            alternativeMeasures: [
+              'Load time improvement',
+              'Resource utilization'
+            ],
+            severity: 'medium'
           });
         }
 
-        return `
-Tool: ${tool.url}
-Category: ${tool.category}
-Description: ${tool.description || 'No description available'}
-Available Metrics: ${metrics.join(', ') || 'No specific metrics available'}
-${tool.webtrack?.project_keywords ? `Relevant Keywords: ${tool.webtrack.project_keywords.join(', ')}` : ''}`;
-      }).join('\n\n');
+        // Communication tools requirements
+        if (tool.category === 'communication') {
+          requirements.push({
+            id: Math.random().toString(36).substr(2, 9),
+            emoji: '💬',
+            alternativeEmojis: ['📢', '🗣️'],
+            title: 'Active Participation',
+            measure: 'Daily check-ins completed',
+            alternativeMeasures: [
+              'Response time (max 4 hours)',
+              'Weekly message count (min 10)'
+            ],
+            severity: 'medium'
+          });
 
-      const prompt = `Task: "${newTaskName}"
-
-Available Tools and Their Metrics:
-${toolsContext || 'No specific tools selected'}
-
-Based on the task and the available tools' metrics, generate exactly 3 requirements that will help measure the success of this task.
-${requirements.length > 0 ? `\nNote: Generate requirements that are different from the existing ${requirements.length} requirements to provide additional coverage.` : ''}
-
-For each requirement:
-1. Generate 3 relevant emojis that represent the requirement
-2. Create a clear, measurable title
-3. Suggest 2 quantitative measures based on the available tool metrics and capabilities
-
-The measures should be specific and quantifiable using the tools' available metrics and features.
-
-Return as JSON array with format:
-[
-  {
-    "emoji": "🎯",
-    "alternativeEmojis": ["🎪", "🎭"],
-    "title": "example requirement title",
-    "measure": "example measure (number)",
-    "alternativeMeasures": ["alternative measure 1", "alternative measure 2"]
-  }
-]
-
-Ensure the response is a valid JSON array with exactly 3 items, and the measures are actually trackable using the provided tools.`;
-
-      console.log('Sending prompt to Gemini:', prompt);
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
-      
-      console.log('Raw Gemini response:', responseText);
-
-      try {
-        const generatedRequirements = JSON.parse(responseText);
-        console.log('Parsed requirements:', generatedRequirements);
-
-        if (!Array.isArray(generatedRequirements) || generatedRequirements.length !== 3) {
-          throw new Error('Invalid response format: expected array of 3 requirements');
+          if (tool.webtrack?.multitask_chance === 'high') {
+            requirements.push({
+              id: Math.random().toString(36).substr(2, 9),
+              emoji: '🤝',
+              alternativeEmojis: ['💡', '🎯'],
+              title: 'Engagement Quality',
+              measure: 'Substantive messages per week (min 5)',
+              alternativeMeasures: [
+                'Thread participation rate',
+                'Reaction engagement score'
+              ],
+              severity: 'medium'
+            });
+          }
         }
 
-        // Validate each requirement has the required fields
-        const validatedRequirements = generatedRequirements.map(req => {
-          if (!req.emoji || !Array.isArray(req.alternativeEmojis) || !req.title || !req.measure || !Array.isArray(req.alternativeMeasures)) {
-            throw new Error('Invalid requirement format: missing required fields');
-          }
-          return {
-            ...req,
-            id: Math.random().toString(36).substr(2, 9)
-          };
-        });
-
-        // Append new requirements instead of replacing
-        setRequirements(prev => [...prev, ...validatedRequirements]);
-      } catch (parseError) {
-        console.error('Error parsing Gemini response:', parseError);
-        // Fallback requirements if parsing fails
-        const fallbackRequirements = [
-          {
+        // Productivity tools requirements
+        if (tool.category === 'productivity') {
+          requirements.push({
             id: Math.random().toString(36).substr(2, 9),
             emoji: '📋',
-            alternativeEmojis: ['✅', '📝'],
-            title: 'Basic Requirement',
-            measure: 'Completion status',
-            alternativeMeasures: ['Progress percentage', 'Time spent']
-          },
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '🎯',
-            alternativeEmojis: ['🔍', '⭐'],
-            title: 'Quality Check',
-            measure: 'Review score',
-            alternativeMeasures: ['Error count', 'Feedback rating']
-          },
-          {
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '⏱️',
-            alternativeEmojis: ['📊', '💪'],
-            title: 'Performance Metric',
-            measure: 'Time to complete',
-            alternativeMeasures: ['Resource usage', 'Efficiency score']
+            alternativeEmojis: ['✅', '⏱️'],
+            title: 'Task Management',
+            measure: 'Daily status updates completed',
+            alternativeMeasures: [
+              'Task completion rate (min 85%)',
+              'Milestone adherence rate'
+            ],
+            severity: 'high'
+          });
+
+          if (tool.webtrack?.search?.available) {
+            requirements.push({
+              id: Math.random().toString(36).substr(2, 9),
+              emoji: '📚',
+              alternativeEmojis: ['✍️', '🔍'],
+              title: 'Documentation Quality',
+              measure: 'Documentation updates per week (min 2)',
+              alternativeMeasures: [
+                'Documentation clarity score',
+                'Search success rate'
+              ],
+              severity: 'medium'
+            });
           }
-        ];
-        // Append fallback requirements instead of replacing
-        setRequirements(prev => [...prev, ...fallbackRequirements]);
-      }
+        }
+
+        // Research tools requirements
+        if (tool.category === 'research') {
+          requirements.push({
+            id: Math.random().toString(36).substr(2, 9),
+            emoji: '🔬',
+            alternativeEmojis: ['📖', '🎓'],
+            title: 'Research Depth',
+            measure: 'Papers reviewed per week (min 5)',
+            alternativeMeasures: [
+              'Citation quality score',
+              'Research coverage index'
+            ],
+            severity: 'high'
+          });
+        }
+
+        return requirements;
+      }).flat();
+
+      // Filter out duplicate requirements
+      const uniqueRequirements = requirements.filter((req, index, self) =>
+        index === self.findIndex((r) => r.title === req.title)
+      );
+
+      setRequirements(uniqueRequirements);
     } catch (error) {
       console.error('Error generating requirements:', error);
-      // Append default requirements instead of replacing
-      const defaultRequirements = [
-        {
-          id: Math.random().toString(36).substr(2, 9),
-          emoji: '📋',
-          alternativeEmojis: ['✅', '📝'],
-          title: 'Basic Requirement',
-          measure: 'Completion status',
-          alternativeMeasures: ['Progress percentage', 'Time spent']
-        },
-        {
-          id: Math.random().toString(36).substr(2, 9),
-          emoji: '🎯',
-          alternativeEmojis: ['🔍', '⭐'],
-          title: 'Quality Check',
-          measure: 'Review score',
-          alternativeMeasures: ['Error count', 'Feedback rating']
-        },
-        {
-          id: Math.random().toString(36).substr(2, 9),
-          emoji: '⏱️',
-          alternativeEmojis: ['📊', '💪'],
-          title: 'Performance Metric',
-          measure: 'Time to complete',
-          alternativeMeasures: ['Resource usage', 'Efficiency score']
-        }
-      ];
-      setRequirements(prev => [...prev, ...defaultRequirements]);
+      setRequirements([]);
     } finally {
       setIsGeneratingRequirements(false);
     }

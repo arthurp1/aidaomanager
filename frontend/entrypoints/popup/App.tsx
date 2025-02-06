@@ -15,20 +15,7 @@ import './App.css';
 import { db } from './db';
 import { Task, SubTask, Role, Requirement } from './types';
 
-interface Rule {
-  id: string;
-  logic: string;
-  pattern: {
-    condition: 'exactly' | 'at_least';
-    threshold: number;
-    metric: string;
-    timePattern: {
-      type: 'in_a_row' | 'in_week' | 'in_month' | 'before_date' | 'by_time' | 'every_x_days';
-      value: number;
-      target?: string;
-    };
-  };
-}
+const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -56,12 +43,16 @@ function App() {
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string>('');
+  const [isDbInitialized, setIsDbInitialized] = useState(false);
+  const [taskTabs, setTaskTabs] = useState<Record<string, 'subtasks' | 'requirements'>>({});
 
   // Initialize database and load data
   useEffect(() => {
     const initializeDB = async () => {
       try {
         await db.init();
+        setIsDbInitialized(true);
+        
         const [
           storedTasks,
           storedSubtasks,
@@ -105,34 +96,39 @@ function App() {
 
   // Save tasks whenever they change
   useEffect(() => {
+    if (!isDbInitialized) return;
     db.saveTasks(tasks).catch(error => {
       console.error('Error saving tasks:', error);
     });
-  }, [tasks]);
+  }, [tasks, isDbInitialized]);
 
   // Save subtasks whenever they change
   useEffect(() => {
+    if (!isDbInitialized) return;
     db.saveSubtasks(subtasks).catch(error => {
       console.error('Error saving subtasks:', error);
     });
-  }, [subtasks]);
+  }, [subtasks, isDbInitialized]);
 
   // Save roles whenever they change
   useEffect(() => {
+    if (!isDbInitialized) return;
     db.saveRoles(roles).catch(error => {
       console.error('Error saving roles:', error);
     });
-  }, [roles]);
+  }, [roles, isDbInitialized]);
 
   // Save requirements whenever they change
   useEffect(() => {
+    if (!isDbInitialized) return;
     db.saveRequirements(requirements).catch(error => {
       console.error('Error saving requirements:', error);
     });
-  }, [requirements]);
+  }, [requirements, isDbInitialized]);
 
   // Save app state whenever relevant parts change
   useEffect(() => {
+    if (!isDbInitialized) return;
     db.saveState({
       activeTask,
       selectedRole,
@@ -140,7 +136,7 @@ function App() {
     }).catch(error => {
       console.error('Error saving app state:', error);
     });
-  }, [activeTask, selectedRole, elapsedTime]);
+  }, [activeTask, selectedRole, elapsedTime, isDbInitialized]);
 
   // Tool suggestions data
   const toolCategories = {
@@ -453,8 +449,29 @@ function App() {
     setSubtasks(prev => [...prev, newSubtaskData]);
   };
 
-  const handleCreateTask = (newTask: { title: string; estimatedTime: number; tools: string[] }) => {
+  // Type for the form input that excludes the description field
+  type RequirementFormData = Omit<Requirement, 'description'>;
+  
+  interface TaskFormInput {
+    title: string;
+    estimatedTime: number;
+    tools: string[];
+    requirements: RequirementFormData[];
+  }
+
+  const handleCreateTask = (newTask: TaskFormInput) => {
     if (!selectedRole) return;
+
+    // First save any new requirements
+    const newRequirements = newTask.requirements.filter(req => !requirements.some(r => r.id === req.id));
+    if (newRequirements.length > 0) {
+      // Convert to full requirements with description
+      const completeRequirements: Requirement[] = newRequirements.map(req => ({
+        ...req,
+        description: `Requirement to track ${req.measure}`,
+      }));
+      setRequirements(prev => [...prev, ...completeRequirements]);
+    }
 
     const taskData: Task = {
       id: crypto.randomUUID(),
@@ -465,7 +482,7 @@ function App() {
       estimatedTime: newTask.estimatedTime,
       tools: newTask.tools,
       trackedTime: 0,
-      requirements: [],
+      requirements: newTask.requirements.map(req => req.id),
     };
 
     setTasks(prev => [...prev, taskData]);
@@ -528,14 +545,84 @@ function App() {
 
   const handlePlayTask = (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isChromeExtension) return; // Don't run in development
+
+    const handleError = (error: any) => {
+      console.error('Timer operation failed:', error);
+      // Fallback to local timer if background script is not available
+      if (activeTask?.id === task.id) {
+        // Save tracked time before stopping
+        const finalTrackedTime = (task.trackedTime || 0) + (elapsedTime / 3600); // Convert seconds to hours
+        setTasks(prev => prev.map(t => 
+          t.id === task.id ? { ...t, trackedTime: finalTrackedTime } : t
+        ));
+        setActiveTask(null);
+        // Don't reset elapsed time here
+      } else {
+        setActiveTask(task);
+        // Keep elapsed time if it's the same task
+        if (task.id !== activeTask?.id) {
+          setElapsedTime(0);
+        }
+      }
+    };
+
     if (activeTask?.id === task.id) {
-      // If clicking the same task, stop tracking
-      setActiveTask(null);
-      setElapsedTime(0);
+      // Stop tracking
+      try {
+        chrome.runtime.sendMessage({ type: 'STOP_TIMER' }, (response) => {
+          if (chrome.runtime.lastError) {
+            handleError(chrome.runtime.lastError);
+            return;
+          }
+          if (response?.success) {
+            // Save tracked time before stopping
+            const finalTrackedTime = (task.trackedTime || 0) + (elapsedTime / 3600); // Convert seconds to hours
+            setTasks(prev => prev.map(t => 
+              t.id === task.id ? { ...t, trackedTime: finalTrackedTime } : t
+            ));
+            setActiveTask(null);
+            // Keep elapsed time in state
+            if (response.stoppedTime !== undefined) {
+              setElapsedTime(response.stoppedTime);
+            }
+          } else {
+            console.error('Failed to stop timer:', response?.error);
+          }
+        });
+      } catch (error) {
+        handleError(error);
+      }
     } else {
       // Start tracking new task
-      setActiveTask(task);
-      setElapsedTime(0);
+      const taskForStorage = {
+        ...task,
+        createdAt: task.createdAt.toISOString()
+      };
+      try {
+        chrome.runtime.sendMessage({ 
+          type: 'START_TIMER',
+          task: taskForStorage,
+          elapsedTime: task.id === activeTask?.id ? elapsedTime : 0
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            handleError(chrome.runtime.lastError);
+            return;
+          }
+          if (response?.success) {
+            setActiveTask(task);
+            // Keep elapsed time if it's the same task
+            if (task.id !== activeTask?.id) {
+              setElapsedTime(0);
+            }
+            console.log('Timer started successfully');
+          } else {
+            console.error('Failed to start timer:', response?.error);
+          }
+        });
+      } catch (error) {
+        handleError(error);
+      }
     }
     // Collapse the task in the backlog when it's played
     setTasks(prev => prev.map(t => 
@@ -553,16 +640,12 @@ function App() {
     setSubtasks(prev => prev.filter(subtask => subtask.id !== subtaskId));
   };
 
-  // Add effect to get current URL and auto-activate matching tasks
+  // Update URL effect
   useEffect(() => {
+    if (!isChromeExtension || !chrome?.storage?.local) return;
+
     const getCurrentUrl = async () => {
       try {
-        // Check if we're in a Chrome extension context
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
-
         const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         const currentTab = tabs[0];
         if (currentTab?.url) {
@@ -616,73 +699,77 @@ function App() {
 
     return () => {
       clearInterval(intervalId);
-      // Save state before unmounting
-      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-        const activeTaskForStorage = activeTask ? {
-          ...activeTask,
-          createdAt: activeTask.createdAt.toISOString()
-        } : null;
-        chrome.storage.local.set({ 
-          activeTask: activeTaskForStorage,
-          elapsedTime 
-        });
-      }
     };
   }, [tasks, activeTask, elapsedTime]);
 
-  // Update timer effect to save state on each tick
+  // Update timer effect to handle connection errors
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    
-    if (activeTask) {
-      // Set initial badge
-      if (chrome.action?.setBadgeText) {
-        chrome.action.setBadgeText({ text: '0:00' });
-        chrome.action.setBadgeBackgroundColor({ color: '#2563eb' }); // blue-600
-      }
+    if (!isChromeExtension) return;
 
-      intervalId = setInterval(() => {
-        setElapsedTime(prev => {
-          const newTime = prev + 1;
-          // Update badge text with formatted time
-          if (chrome.action?.setBadgeText) {
-            const minutes = Math.floor(newTime / 60);
-            const seconds = newTime % 60;
-            const badgeText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            chrome.action.setBadgeText({ text: badgeText });
-          }
-
-          // Save state on each tick
-          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            const activeTaskForStorage = activeTask ? {
-              ...activeTask,
-              createdAt: activeTask.createdAt.toISOString()
-            } : null;
-            chrome.storage.local.set({ 
-              activeTask: activeTaskForStorage,
-              elapsedTime: newTime 
-            });
-          }
-
-          return newTime;
-        });
+    let localTimer: NodeJS.Timeout | null = null;
+    const startLocalTimer = () => {
+      if (localTimer) clearInterval(localTimer);
+      localTimer = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
       }, 1000);
-    } else {
-      // Clear badge when no active task
-      if (chrome.action?.setBadgeText) {
-        chrome.action.setBadgeText({ text: '' });
-      }
-    }
+    };
 
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-      // Clear badge on cleanup
-      if (chrome.action?.setBadgeText) {
-        chrome.action.setBadgeText({ text: '' });
+    const stopLocalTimer = () => {
+      if (localTimer) {
+        clearInterval(localTimer);
+        localTimer = null;
       }
     };
+
+    // Try to get state from background script
+    try {
+      chrome.runtime.sendMessage({ type: 'GET_TIMER_STATE' }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('Background script not available, using local timer');
+          if (activeTask) startLocalTimer();
+          return;
+        }
+
+        if (response?.activeTask) {
+          setActiveTask({
+            ...response.activeTask,
+            createdAt: new Date(response.activeTask.createdAt)
+          });
+          setElapsedTime(response.elapsedTime);
+        }
+      });
+
+      // Listen for timer updates from background script
+      const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+        if (changes.elapsedTime) {
+          setElapsedTime(changes.elapsedTime.newValue);
+        }
+        if (changes.activeTask) {
+          const newActiveTask = changes.activeTask.newValue;
+          if (newActiveTask) {
+            setActiveTask({
+              ...newActiveTask,
+              createdAt: new Date(newActiveTask.createdAt)
+            });
+          } else {
+            setActiveTask(null);
+          }
+        }
+      };
+
+      if (chrome.storage?.onChanged) {
+        chrome.storage.onChanged.addListener(handleStorageChange);
+        return () => {
+          chrome.storage.onChanged.removeListener(handleStorageChange);
+          stopLocalTimer();
+        };
+      }
+    } catch (error) {
+      console.warn('Error setting up timer:', error);
+      if (activeTask) startLocalTimer();
+    }
+
+    return () => stopLocalTimer();
   }, [activeTask]);
 
   // Add function to format time
@@ -697,6 +784,13 @@ function App() {
       return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`;
     }
     return `${pad(minutes)}:${pad(remainingSeconds)}`;
+  };
+
+  // Add formatTrackedTime function
+  const formatTrackedTime = (time: number): string => {
+    if (time === 0) return "0";
+    if (time > 0 && time < 0.1) return "0.1";
+    return time.toFixed(1);
   };
 
   // Add export function
@@ -788,6 +882,11 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Add function to handle tab selection
+  const handleTabChange = (taskId: string, tab: 'subtasks' | 'requirements') => {
+    setTaskTabs(prev => ({ ...prev, [taskId]: tab }));
+  };
+
   return (
     <div 
       ref={appRef}
@@ -819,7 +918,7 @@ function App() {
                   </div>
                 </div>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {activeTask.trackedTime}/{activeTask.estimatedTime}h
+                  {formatTrackedTime(activeTask.trackedTime)}/{activeTask.estimatedTime}h
                 </span>
               </div>
               <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
@@ -899,7 +998,7 @@ function App() {
                 onMouseLeave={() => setIsHoveringTaskList(false)}
               >
                 {getFilteredTasks(selectedRole).map(task => (
-                  <div key={task.id}>
+                  <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50 last:border-b-0">
                     {/* Task Header */}
                     <div 
                       className="group flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 cursor-pointer"
@@ -915,7 +1014,7 @@ function App() {
                         <div className="flex items-center justify-between">
                           <span className="font-medium">{task.title}</span>
                           <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {task.trackedTime}/{task.estimatedTime}h
+                            {formatTrackedTime(task.trackedTime)}/{task.estimatedTime}h
                           </span>
                         </div>
                         <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500">
@@ -935,18 +1034,80 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Subtasks */}
+                    {/* Tabs and Content */}
                     {!task.isCollapsed && (
-                      <TaskTable
-                        tasks={subtasks.filter(subtask => subtask.taskId === task.id)}
-                        onCreateTask={(newSubtask) => handleCreateSubtask({ 
-                          ...newSubtask, 
-                          roleId: selectedRole,
-                          taskId: task.id 
-                        })}
-                        onToggleComplete={handleToggleSubtaskComplete}
-                        onDeleteTask={handleDeleteSubtask}
-                      />
+                      <div>
+                        {/* Tabs - removed border-t and adjusted text size */}
+                        <div className="flex">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTabChange(task.id, 'subtasks');
+                            }}
+                            className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                              (!taskTabs[task.id] || taskTabs[task.id] === 'subtasks')
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                          >
+                            Subtasks
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTabChange(task.id, 'requirements');
+                            }}
+                            className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                              taskTabs[task.id] === 'requirements'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                          >
+                            Requirements
+                          </button>
+                        </div>
+
+                        {/* Tab Content */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {(!taskTabs[task.id] || taskTabs[task.id] === 'subtasks') ? (
+                            <TaskTable
+                              tasks={subtasks.filter(subtask => subtask.taskId === task.id)}
+                              onCreateTask={(newSubtask) => handleCreateSubtask({ 
+                                ...newSubtask, 
+                                roleId: selectedRole,
+                                taskId: task.id 
+                              })}
+                              onToggleComplete={handleToggleSubtaskComplete}
+                              onDeleteTask={handleDeleteSubtask}
+                            />
+                          ) : (
+                            <div className="p-3">
+                              {task.requirements.length > 0 ? (
+                                <div className="space-y-2">
+                                  {requirements
+                                    .filter(req => task.requirements.includes(req.id))
+                                    .map(req => (
+                                      <div key={req.id} className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded">
+                                        <span className="text-lg">{req.emoji}</span>
+                                        <div>
+                                          <div className="text-sm font-medium dark:text-gray-200">{req.title}</div>
+                                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                                            Measured by: {req.measure}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  }
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                  No requirements set for this task
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
