@@ -37,11 +37,26 @@ interface ToolDetails {
   };
 }
 
+interface TimePattern {
+  type: 'in_a_row' | 'in_week' | 'in_month' | 'before_date' | 'by_time' | 'every_x_days';
+  value: number;
+  unit?: string;
+  target?: string;
+}
+
+interface RulePattern {
+  condition: 'more_than' | 'less_than' | 'exactly' | 'at_least' | 'at_most';
+  threshold: number;
+  metric: string;
+  timePattern: TimePattern;
+}
+
 interface Rule {
   id: string;
   text: string;
   performanceLevel: '😍' | '👋' | '🤔';
-  logic: string;  // Full logic explanation
+  logic: string;
+  pattern?: RulePattern;
 }
 
 interface Requirement {
@@ -270,67 +285,129 @@ Tool: ${newTaskTools.join(', ')}
 Requirement: ${requirement.title}
 Measure: ${requirement.measure}
 
-Generate 3 specific rules with different performance levels that would trigger different actions:
-1. 😍 Exceptional (worth a team shoutout) - should be challenging but achievable
-2. 👋 Reminder (helpful to get a DM) - should be a gentle early warning
-3. 🤔 Questionable (needs discussion in 1on1) - should indicate a pattern of concern
+Generate 3 specific rules with different performance levels that would trigger different actions.
+Use a variety of time patterns and conditions to create meaningful rules.
 
-For each rule:
-- Use formats like "X times in a row", "within X days", "before X", "more/less than X"
-- Include specific numbers and timeframes
-- Make the rules progressively more strict from reminder to questionable
-- Ensure rules are reasonable and achievable
+Available Time Patterns:
+- "X times in a row" (consecutive achievements)
+- "X times in a week" (weekly frequency)
+- "X times in a month" (monthly quota)
+- "before [day]" (deadline-based)
+- "by [time]" (time-of-day based)
+- "every X days" (regular intervals)
+
+Available Conditions:
+- "more than X"
+- "less than X"
+- "exactly X"
+- "at least X"
+- "at most X"
+
+For each rule, generate:
+1. 😍 Exceptional (worth a team shoutout):
+   - Should be challenging but achievable
+   - Use longer time spans or higher thresholds
+   - Example: "more than 5 times in a month" or "7 days in a row"
+
+2. 👋 Reminder (helpful to get a DM):
+   - Should be an early warning
+   - Use shorter time spans or lower thresholds
+   - Example: "less than 2 times this week" or "not done by 10am"
+
+3. 🤔 Questionable (needs discussion in 1on1):
+   - Should indicate a concerning pattern
+   - Use multiple missed targets or consistent underperformance
+   - Example: "less than 50% completion in two weeks" or "late 3 times in a month"
 
 Return as JSON array with format:
 [
   {
     "performanceLevel": "😍",
     "text": "short rule text",
-    "logic": "detailed explanation of the logic and why it deserves recognition"
+    "logic": "detailed explanation of the logic and why it deserves recognition",
+    "pattern": {
+      "condition": "more_than",
+      "threshold": 5,
+      "metric": "completion",
+      "timePattern": {
+        "type": "in_month",
+        "value": 1
+      }
+    }
   }
 ]`;
 
     try {
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      const generatedRules = JSON.parse(response.text()) as GeneratedRule[];
+      console.log('Raw rule generation response:', response.text());
+      const generatedRules = JSON.parse(response.text()) as (GeneratedRule & { pattern?: RulePattern })[];
 
       return generatedRules.map(rule => ({
         ...rule,
-        id: Math.random().toString(36).substr(2, 9)
+        id: Math.random().toString(36).substr(2, 9),
+        pattern: rule.pattern || {
+          condition: 'exactly',
+          threshold: 1,
+          metric: requirement.measure,
+          timePattern: {
+            type: 'in_a_row',
+            value: 1
+          }
+        }
       }));
     } catch (error) {
       console.error('Error generating rules:', error);
-      // Fallback rules
+      // Fallback rules with patterns
       return [
         {
           id: Math.random().toString(36).substr(2, 9),
           performanceLevel: '😍',
           text: `${requirement.measure} achieved 5 times in a row`,
-          logic: 'Consistently meeting the requirement shows exceptional commitment'
+          logic: 'Consistently meeting the requirement shows exceptional commitment',
+          pattern: {
+            condition: 'more_than',
+            threshold: 5,
+            metric: requirement.measure,
+            timePattern: {
+              type: 'in_a_row',
+              value: 1
+            }
+          }
         },
         {
           id: Math.random().toString(36).substr(2, 9),
           performanceLevel: '👋',
-          text: `${requirement.measure} missed once`,
-          logic: 'A single miss is a good time for a gentle reminder'
+          text: `${requirement.measure} missed once this week`,
+          logic: 'A single miss is a good time for a gentle reminder',
+          pattern: {
+            condition: 'less_than',
+            threshold: 1,
+            metric: requirement.measure,
+            timePattern: {
+              type: 'in_week',
+              value: 1
+            }
+          }
         },
         {
           id: Math.random().toString(36).substr(2, 9),
           performanceLevel: '🤔',
-          text: `${requirement.measure} missed 3 times in a row`,
-          logic: 'A pattern of misses indicates a need for discussion'
+          text: `${requirement.measure} missed 3 times this month`,
+          logic: 'A pattern of misses indicates a need for discussion',
+          pattern: {
+            condition: 'less_than',
+            threshold: 3,
+            metric: requirement.measure,
+            timePattern: {
+              type: 'in_month',
+              value: 1
+            }
+          }
         }
       ];
     }
   };
-
-  // Effect to generate requirements when task name or tools change
-  useEffect(() => {
-    if (newTaskName.trim() && newTaskTools.length > 0) {
-      generateRequirements();
-    }
-  }, [newTaskName, newTaskTools]);
 
   const handleSubmit = () => {
     if (!newTaskName.trim() || newTaskTime <= 0) return;
@@ -602,19 +679,206 @@ Return as JSON array with format:
                             )}
                           </div>
 
-                          {/* Rule text */}
-                          <input
-                            type="text"
-                            value={rule.text}
-                            onChange={(e) => {
-                              const newRules = [...(req.rules || [])];
-                              newRules[index] = { ...newRules[index], text: e.target.value };
-                              setRequirements(reqs => reqs.map(r => 
-                                r.id === req.id ? { ...r, rules: newRules } : r
-                              ));
-                            }}
-                            className="flex-1 px-2 py-1 text-sm bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
-                          />
+                          {/* Rule composer */}
+                          <div className="flex-1 flex items-center gap-2">
+                            <select
+                              value={rule.pattern?.condition || 'exactly'}
+                              onChange={(e) => {
+                                const newRules = [...(req.rules || [])];
+                                const defaultPattern = {
+                                  condition: 'exactly' as const,
+                                  threshold: 1,
+                                  metric: req.measure,
+                                  timePattern: { type: 'in_a_row' as const, value: 1 }
+                                };
+                                newRules[index] = {
+                                  ...newRules[index],
+                                  pattern: {
+                                    ...(newRules[index].pattern || defaultPattern),
+                                    condition: e.target.value as RulePattern['condition']
+                                  }
+                                };
+                                setRequirements(reqs => reqs.map(r => 
+                                  r.id === req.id ? { ...r, rules: newRules } : r
+                                ));
+                              }}
+                              className="px-2 py-1 text-sm bg-transparent border border-gray-200 dark:border-gray-700 rounded focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                            >
+                              <option value="more_than">more than</option>
+                              <option value="less_than">less than</option>
+                              <option value="exactly">exactly</option>
+                              <option value="at_least">at least</option>
+                              <option value="at_most">at most</option>
+                            </select>
+
+                            <input
+                              type="number"
+                              value={rule.pattern?.threshold || 1}
+                              onChange={(e) => {
+                                const newRules = [...(req.rules || [])];
+                                const defaultPattern = {
+                                  condition: 'exactly' as const,
+                                  threshold: 1,
+                                  metric: req.measure,
+                                  timePattern: { type: 'in_a_row' as const, value: 1 }
+                                };
+                                newRules[index] = {
+                                  ...newRules[index],
+                                  pattern: {
+                                    ...(newRules[index].pattern || defaultPattern),
+                                    threshold: Number(e.target.value)
+                                  }
+                                };
+                                setRequirements(reqs => reqs.map(r => 
+                                  r.id === req.id ? { ...r, rules: newRules } : r
+                                ));
+                              }}
+                              min="1"
+                              className="w-16 px-2 py-1 text-sm bg-transparent border border-gray-200 dark:border-gray-700 rounded focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                            />
+
+                            <span className="text-sm dark:text-gray-300">times</span>
+
+                            <select
+                              value={rule.pattern?.timePattern.type || 'in_a_row'}
+                              onChange={(e) => {
+                                const newRules = [...(req.rules || [])];
+                                const type = e.target.value as TimePattern['type'];
+                                const defaultPattern = {
+                                  condition: 'exactly' as const,
+                                  threshold: 1,
+                                  metric: req.measure,
+                                  timePattern: { type, value: 1 }
+                                };
+                                newRules[index] = {
+                                  ...newRules[index],
+                                  pattern: {
+                                    ...(newRules[index].pattern || defaultPattern),
+                                    timePattern: {
+                                      type,
+                                      value: 1
+                                    }
+                                  }
+                                };
+                                setRequirements(reqs => reqs.map(r => 
+                                  r.id === req.id ? { ...r, rules: newRules } : r
+                                ));
+                              }}
+                              className="px-2 py-1 text-sm bg-transparent border border-gray-200 dark:border-gray-700 rounded focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                            >
+                              <option value="in_a_row">in a row</option>
+                              <option value="in_week">in a week</option>
+                              <option value="in_month">in a month</option>
+                              <option value="before_date">before</option>
+                              <option value="by_time">by</option>
+                              <option value="every_x_days">every</option>
+                            </select>
+
+                            {rule.pattern?.timePattern.type === 'before_date' && (
+                              <input
+                                type="date"
+                                value={rule.pattern.timePattern.target || ''}
+                                onChange={(e) => {
+                                  const newRules = [...(req.rules || [])];
+                                  const defaultPattern = {
+                                    condition: 'exactly' as const,
+                                    threshold: 1,
+                                    metric: req.measure,
+                                    timePattern: { 
+                                      type: 'before_date' as const,
+                                      value: 1,
+                                      target: e.target.value
+                                    }
+                                  };
+                                  newRules[index] = {
+                                    ...newRules[index],
+                                    pattern: {
+                                      ...(newRules[index].pattern || defaultPattern),
+                                      timePattern: {
+                                        ...newRules[index].pattern!.timePattern,
+                                        target: e.target.value
+                                      }
+                                    }
+                                  };
+                                  setRequirements(reqs => reqs.map(r => 
+                                    r.id === req.id ? { ...r, rules: newRules } : r
+                                  ));
+                                }}
+                                className="px-2 py-1 text-sm bg-transparent border border-gray-200 dark:border-gray-700 rounded focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                              />
+                            )}
+
+                            {rule.pattern?.timePattern.type === 'by_time' && (
+                              <input
+                                type="time"
+                                value={rule.pattern.timePattern.target || ''}
+                                onChange={(e) => {
+                                  const newRules = [...(req.rules || [])];
+                                  const defaultPattern = {
+                                    condition: 'exactly' as const,
+                                    threshold: 1,
+                                    metric: req.measure,
+                                    timePattern: { 
+                                      type: 'by_time' as const,
+                                      value: 1,
+                                      target: e.target.value
+                                    }
+                                  };
+                                  newRules[index] = {
+                                    ...newRules[index],
+                                    pattern: {
+                                      ...(newRules[index].pattern || defaultPattern),
+                                      timePattern: {
+                                        ...newRules[index].pattern!.timePattern,
+                                        target: e.target.value
+                                      }
+                                    }
+                                  };
+                                  setRequirements(reqs => reqs.map(r => 
+                                    r.id === req.id ? { ...r, rules: newRules } : r
+                                  ));
+                                }}
+                                className="px-2 py-1 text-sm bg-transparent border border-gray-200 dark:border-gray-700 rounded focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                              />
+                            )}
+
+                            {rule.pattern?.timePattern.type === 'every_x_days' && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  value={rule.pattern.timePattern.value || 1}
+                                  onChange={(e) => {
+                                    const newRules = [...(req.rules || [])];
+                                    const defaultPattern = {
+                                      condition: 'exactly' as const,
+                                      threshold: 1,
+                                      metric: req.measure,
+                                      timePattern: { 
+                                        type: 'every_x_days' as const,
+                                        value: Number(e.target.value)
+                                      }
+                                    };
+                                    newRules[index] = {
+                                      ...newRules[index],
+                                      pattern: {
+                                        ...(newRules[index].pattern || defaultPattern),
+                                        timePattern: {
+                                          ...newRules[index].pattern!.timePattern,
+                                          value: Number(e.target.value)
+                                        }
+                                      }
+                                    };
+                                    setRequirements(reqs => reqs.map(r => 
+                                      r.id === req.id ? { ...r, rules: newRules } : r
+                                    ));
+                                  }}
+                                  min="1"
+                                  className="w-16 px-2 py-1 text-sm bg-transparent border border-gray-200 dark:border-gray-700 rounded focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                                />
+                                <span className="text-sm dark:text-gray-300">days</span>
+                              </div>
+                            )}
+                          </div>
 
                           {/* Delete button */}
                           <button
@@ -669,7 +933,7 @@ Return as JSON array with format:
           <div className="flex items-center justify-between mt-2">
             <button
               onClick={generateRequirements}
-              disabled={isGeneratingRequirements || !newTaskName.trim()}
+              disabled={isGeneratingRequirements || !newTaskName.trim() || newTaskTools.length === 0}
               className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-dark-hover/50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isGeneratingRequirements ? (

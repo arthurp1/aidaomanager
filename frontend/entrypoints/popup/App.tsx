@@ -561,7 +561,7 @@ function App() {
               className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 flex items-center gap-1"
             >
               <span className="text-lg leading-none">+</span>
-              <span>Suggest a Role</span>
+              <span>Role</span>
             </button>
           )}
         </div>
@@ -636,7 +636,7 @@ function App() {
                     className="w-full px-3 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 flex items-center justify-center gap-2 group transition-colors"
                   >
                     <span className="text-lg leading-none group-hover:text-blue-500">+</span>
-                    <span className="group-hover:text-blue-500">Propose New Task</span>
+                    <span className="group-hover:text-blue-500">Add New Task</span>
                   </button>
                 )}
 
