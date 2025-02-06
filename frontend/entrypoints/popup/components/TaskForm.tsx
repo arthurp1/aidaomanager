@@ -24,6 +24,7 @@ interface WebTrack {
     available: boolean;
     project_keywords?: string[];
   };
+  project_keywords?: string[];
 }
 
 interface ToolDetails {
@@ -36,6 +37,13 @@ interface ToolDetails {
   };
 }
 
+interface Rule {
+  id: string;
+  text: string;
+  performanceLevel: '😍' | '👋' | '🤔';
+  logic: string;  // Full logic explanation
+}
+
 interface Requirement {
   id: string;
   emoji: string;
@@ -43,6 +51,14 @@ interface Requirement {
   title: string;
   measure: string;
   alternativeMeasures: string[];
+  isAccepted?: boolean;
+  rules?: Rule[];
+}
+
+interface GeneratedRule {
+  performanceLevel: '😍' | '👋' | '🤔';
+  text: string;
+  logic: string;
 }
 
 interface TaskFormProps {
@@ -246,6 +262,69 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
     }
   };
 
+  // Function to generate rules for a requirement
+  const generateRules = async (requirement: Requirement): Promise<Rule[]> => {
+    const prompt = `Given the following context:
+Task: "${newTaskName}"
+Tool: ${newTaskTools.join(', ')}
+Requirement: ${requirement.title}
+Measure: ${requirement.measure}
+
+Generate 3 specific rules with different performance levels that would trigger different actions:
+1. 😍 Exceptional (worth a team shoutout) - should be challenging but achievable
+2. 👋 Reminder (helpful to get a DM) - should be a gentle early warning
+3. 🤔 Questionable (needs discussion in 1on1) - should indicate a pattern of concern
+
+For each rule:
+- Use formats like "X times in a row", "within X days", "before X", "more/less than X"
+- Include specific numbers and timeframes
+- Make the rules progressively more strict from reminder to questionable
+- Ensure rules are reasonable and achievable
+
+Return as JSON array with format:
+[
+  {
+    "performanceLevel": "😍",
+    "text": "short rule text",
+    "logic": "detailed explanation of the logic and why it deserves recognition"
+  }
+]`;
+
+    try {
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const generatedRules = JSON.parse(response.text()) as GeneratedRule[];
+
+      return generatedRules.map(rule => ({
+        ...rule,
+        id: Math.random().toString(36).substr(2, 9)
+      }));
+    } catch (error) {
+      console.error('Error generating rules:', error);
+      // Fallback rules
+      return [
+        {
+          id: Math.random().toString(36).substr(2, 9),
+          performanceLevel: '😍',
+          text: `${requirement.measure} achieved 5 times in a row`,
+          logic: 'Consistently meeting the requirement shows exceptional commitment'
+        },
+        {
+          id: Math.random().toString(36).substr(2, 9),
+          performanceLevel: '👋',
+          text: `${requirement.measure} missed once`,
+          logic: 'A single miss is a good time for a gentle reminder'
+        },
+        {
+          id: Math.random().toString(36).substr(2, 9),
+          performanceLevel: '🤔',
+          text: `${requirement.measure} missed 3 times in a row`,
+          logic: 'A pattern of misses indicates a need for discussion'
+        }
+      ];
+    }
+  };
+
   // Effect to generate requirements when task name or tools change
   useEffect(() => {
     if (newTaskName.trim() && newTaskTools.length > 0) {
@@ -365,82 +444,223 @@ Ensure the response is a valid JSON array with exactly 3 items, and the measures
           {/* Requirements list */}
           <div className="flex flex-col gap-1">
             {requirements.map((req) => (
-              <div 
-                key={req.id}
-                className="group flex items-start gap-2 py-2 px-2 hover:bg-gray-50 dark:hover:bg-dark-hover/50 rounded text-left"
-              >
-                {/* Emoji section */}
-                <div className="relative mt-0.5">
-                  <button
-                    onClick={() => setHoveredRequirement(hoveredRequirement === req.id ? null : req.id)}
-                    className="text-lg hover:bg-gray-100 dark:hover:bg-dark-hover p-0.5 rounded"
-                  >
-                    {req.emoji}
-                  </button>
-                  {hoveredRequirement === req.id && (
-                    <div className="absolute top-full left-0 mt-1 bg-white dark:bg-dark-surface rounded shadow-lg p-1 flex gap-1 z-20">
-                      {req.alternativeEmojis.map((emoji, i) => (
-                        <button
-                          key={i}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRequirements(reqs => reqs.map(r => 
-                              r.id === req.id ? { ...r, emoji } : r
-                            ));
-                            setHoveredRequirement(null);
-                          }}
-                          className="hover:bg-gray-100 dark:hover:bg-dark-hover p-1 rounded"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Title and measure */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium dark:text-gray-200 text-left">{req.title}</div>
-                  <div className="relative">
+              <div key={req.id}>
+                {/* Suggestion/Accepted row */}
+                <div 
+                  className="group flex items-start gap-2 py-2 px-2 hover:bg-gray-50 dark:hover:bg-dark-hover/50 rounded text-left"
+                >
+                  {/* Emoji section */}
+                  <div className="relative mt-0.5">
                     <button
-                      onClick={() => setShowMeasureDropdown(showMeasureDropdown === req.id ? null : req.id)}
-                      className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-left"
+                      onClick={() => setHoveredRequirement(hoveredRequirement === req.id ? null : req.id)}
+                      className="text-lg hover:bg-gray-100 dark:hover:bg-dark-hover p-0.5 rounded"
                     >
-                      Measured by: {req.measure} ▾
+                      {req.emoji}
                     </button>
-                    {showMeasureDropdown === req.id && (
-                      <div className="absolute top-full left-0 mt-1 bg-white dark:bg-dark-surface rounded shadow-lg p-1 z-10 min-w-[150px]">
-                        {req.alternativeMeasures.map((measure, i) => (
+                    {hoveredRequirement === req.id && (
+                      <div className="absolute top-full left-0 mt-1 bg-white dark:bg-dark-surface rounded shadow-lg p-1 flex gap-1 z-20">
+                        {req.alternativeEmojis.map((emoji, i) => (
                           <button
                             key={i}
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setRequirements(reqs => reqs.map(r => 
-                                r.id === req.id ? { ...r, measure } : r
+                                r.id === req.id ? { ...r, emoji } : r
                               ));
-                              setShowMeasureDropdown(null);
+                              setHoveredRequirement(null);
                             }}
-                            className="block w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-dark-hover rounded"
+                            className="hover:bg-gray-100 dark:hover:bg-dark-hover p-1 rounded"
                           >
-                            {measure}
+                            {emoji}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
+
+                  {/* Title and measure */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium dark:text-gray-200 text-left">{req.title}</div>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowMeasureDropdown(showMeasureDropdown === req.id ? null : req.id)}
+                        className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-left"
+                      >
+                        Measured by: {req.measure} ▾
+                      </button>
+                      {showMeasureDropdown === req.id && (
+                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-dark-surface rounded shadow-lg p-1 z-10 min-w-[150px]">
+                          {req.alternativeMeasures.map((measure, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setRequirements(reqs => reqs.map(r => 
+                                  r.id === req.id ? { ...r, measure } : r
+                                ));
+                                setShowMeasureDropdown(null);
+                              }}
+                              className="block w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-dark-hover rounded"
+                            >
+                              {measure}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Accept/Delete buttons */}
+                  <div className="flex items-center gap-1">
+                    {!req.isAccepted ? (
+                      <button
+                        onClick={async () => {
+                          const generatedRules = await generateRules(req);
+                          setRequirements(reqs => reqs.map(r => 
+                            r.id === req.id ? {
+                              ...r,
+                              isAccepted: true,
+                              rules: generatedRules
+                            } : r
+                          ));
+                        }}
+                        className="text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300 p-1 rounded"
+                        title="Accept requirement"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setRequirements(reqs => reqs.map(r => 
+                          r.id === req.id ? { ...r, isAccepted: false, rules: [] } : r
+                        ))}
+                        className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded"
+                        title="Unaccept requirement"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setRequirements(reqs => reqs.filter(r => r.id !== req.id))}
+                      className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 p-1 rounded"
+                      title="Remove requirement"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Accept/Delete buttons */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setRequirements(reqs => reqs.filter(r => r.id !== req.id))}
-                    className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 p-1 rounded"
-                    title="Remove suggestion"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+                {/* Rules section (only when accepted) */}
+                {req.isAccepted && (
+                  <div className="flex flex-col gap-1 py-1 px-2 bg-gray-50 dark:bg-dark-hover/30 rounded mt-1">
+                    {/* Rules list */}
+                    <div className="flex-1 flex flex-col gap-1">
+                      {(req.rules || []).map((rule, index) => (
+                        <div key={rule.id} className="flex items-center gap-2">
+                          {/* Performance Level Emoji with tooltip */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setHoveredRequirement(hoveredRequirement === `rule-${rule.id}` ? null : `rule-${rule.id}`)}
+                              className="text-lg hover:bg-gray-100 dark:hover:bg-dark-hover p-0.5 rounded group"
+                            >
+                              <span>{rule.performanceLevel}</span>
+                              {/* Tooltip */}
+                              <div className="absolute left-0 top-full mt-1 hidden group-hover:block bg-black/75 backdrop-blur-sm text-white text-xs p-2 rounded shadow-lg whitespace-normal max-w-xs z-30">
+                                {rule.logic}
+                              </div>
+                            </button>
+                            {hoveredRequirement === `rule-${rule.id}` && (
+                              <div className="absolute top-full left-0 mt-1 bg-white dark:bg-dark-surface rounded shadow-lg p-1 z-20 min-w-[200px]">
+                                {([
+                                  { emoji: '😍', label: 'Exceptional - shoutout' },
+                                  { emoji: '👋', label: 'Reminder' },
+                                  { emoji: '🤔', label: 'Questionable - 1on1 meeting' }
+                                ] as const).map(({ emoji, label }) => (
+                                  <button
+                                    key={emoji}
+                                    onClick={() => {
+                                      const newRules = [...(req.rules || [])];
+                                      newRules[index] = { ...newRules[index], performanceLevel: emoji };
+                                      setRequirements(reqs => reqs.map(r => 
+                                        r.id === req.id ? { ...r, rules: newRules } : r
+                                      ));
+                                      setHoveredRequirement(null);
+                                    }}
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover rounded"
+                                    title={label}
+                                  >
+                                    <span className="text-lg">{emoji}</span>
+                                    <span className="text-xs text-gray-600 dark:text-gray-400">{label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Rule text */}
+                          <input
+                            type="text"
+                            value={rule.text}
+                            onChange={(e) => {
+                              const newRules = [...(req.rules || [])];
+                              newRules[index] = { ...newRules[index], text: e.target.value };
+                              setRequirements(reqs => reqs.map(r => 
+                                r.id === req.id ? { ...r, rules: newRules } : r
+                              ));
+                            }}
+                            className="flex-1 px-2 py-1 text-sm bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100"
+                          />
+
+                          {/* Delete button */}
+                          <button
+                            onClick={() => {
+                              const newRules = [...(req.rules || [])];
+                              newRules.splice(index, 1);
+                              setRequirements(reqs => reqs.map(r => 
+                                r.id === req.id ? { ...r, rules: newRules } : r
+                              ));
+                            }}
+                            className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 p-1 rounded"
+                            title="Remove rule"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      
+                      {/* Add rule button */}
+                      <button
+                        onClick={() => {
+                          const newRule: Rule = {
+                            id: Math.random().toString(36).substr(2, 9),
+                            text: '',
+                            performanceLevel: '👋',
+                            logic: 'Default reminder logic'
+                          };
+                          setRequirements(reqs => reqs.map(r => 
+                            r.id === req.id ? {
+                              ...r,
+                              rules: [...(r.rules || []), newRule]
+                            } : r
+                          ));
+                        }}
+                        className="self-start flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mt-1"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Add rule</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

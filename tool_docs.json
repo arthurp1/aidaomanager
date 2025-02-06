@@ -766,6 +766,89 @@
                 "requiredRevisionId": "ALm...xyz"
               }
             }
+          },
+          {
+            "url": "/v1/documents/:documentId/suggestions",
+            "input_params": {
+              "documentId": "1ABC...xyz",
+              "suggestionsViewMode": "PREVIEW_WITHOUT_SUGGESTIONS",
+              "range": {
+                "startIndex": 0,
+                "endIndex": 500
+              },
+              "filter": {
+                "authors": ["user@company.com"],
+                "types": ["INSERT_TEXT", "DELETE_TEXT", "REPLACE_TEXT"]
+              }
+            },
+            "output_format": {
+              "suggestions": [
+                {
+                  "id": "suggestion_abc123",
+                  "type": "INSERT_TEXT",
+                  "author": {
+                    "email": "reviewer@company.com",
+                    "displayName": "Technical Reviewer",
+                    "photoUrl": "https://lh3.googleusercontent.com/a/user-photo"
+                  },
+                  "createTime": "2024-03-15T14:22:33Z",
+                  "range": {
+                    "startIndex": 145,
+                    "endIndex": 167
+                  },
+                  "content": "with enhanced decision-making capabilities",
+                  "status": "PENDING"
+                }
+              ],
+              "nextPageToken": "token_xyz789"
+            }
+          },
+          {
+            "url": "/v1/documents/:documentId/comments",
+            "input_params": {
+              "documentId": "1ABC...xyz",
+              "comment": {
+                "content": "Please review the agent's decision tree implementation",
+                "quotedFileContent": {
+                  "value": "The agent uses a hierarchical approach...",
+                  "mimeType": "text/plain"
+                },
+                "location": {
+                  "index": 230
+                },
+                "suggestedChanges": [
+                  {
+                    "oldText": "hierarchical approach",
+                    "newText": "multi-level decision tree approach"
+                  }
+                ]
+              }
+            },
+            "output_format": {
+              "commentId": "comment_def456",
+              "content": "Please review the agent's decision tree implementation",
+              "author": {
+                "email": "tech.lead@company.com",
+                "displayName": "Technical Lead",
+                "photoUrl": "https://lh3.googleusercontent.com/a/lead-photo"
+              },
+              "createTime": "2024-03-15T15:30:00Z",
+              "modifiedTime": "2024-03-15T15:30:00Z",
+              "resolved": false,
+              "replies": [],
+              "quotedFileContent": {
+                "value": "The agent uses a hierarchical approach...",
+                "mimeType": "text/plain"
+              },
+              "suggestedChanges": [
+                {
+                  "id": "change_789ghi",
+                  "oldText": "hierarchical approach",
+                  "newText": "multi-level decision tree approach",
+                  "status": "PENDING"
+                }
+              ]
+            }
           }
         ]
       }
