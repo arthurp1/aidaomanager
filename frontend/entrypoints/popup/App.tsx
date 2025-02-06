@@ -12,39 +12,8 @@ import {
   SparklesIcon
 } from '@heroicons/react/24/outline';
 import './App.css';
-
-interface SubTask {
-  id: string;
-  title: string;
-  estimatedTime: number;
-  domain: string;
-  status: 'active' | 'inactive' | 'archived';
-  createdAt: Date;
-  updatedAt: Date;
-  totalTimeSpent?: number;
-  roleId: string;
-  taskId: string;
-  isCompleted?: boolean;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  roleId: string;
-  createdAt: Date;
-  isCollapsed: boolean;
-  estimatedTime: number;
-  tools: string[];
-  trackedTime: number;
-  requirements: string[];
-}
-
-interface Role {
-  id: string;
-  name: string;
-  createdAt: Date;
-  tools: string[];
-}
+import { db } from './db';
+import { Task, SubTask, Role, Requirement } from './types';
 
 interface Rule {
   id: string;
@@ -59,16 +28,6 @@ interface Rule {
       target?: string;
     };
   };
-}
-
-interface Requirement {
-  id: string;
-  rules: Rule[];
-  emoji: string;
-  alternativeEmojis: string[];
-  title: string;
-  description: string;
-  measure: string;
 }
 
 function App() {
@@ -98,184 +57,90 @@ function App() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [currentUrl, setCurrentUrl] = useState<string>('');
 
-  // Load data from storage when component mounts
+  // Initialize database and load data
   useEffect(() => {
-    const loadStoredData = async () => {
+    const initializeDB = async () => {
       try {
-        // Check if we're in a Chrome extension context
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
-
-        const data = await chrome.storage.local.get([
-          'tasks',
-          'subtasks',
-          'roles',
-          'selectedRole',
-          'activeTask',
-          'elapsedTime'
+        await db.init();
+        const [
+          storedTasks,
+          storedSubtasks,
+          storedRoles,
+          storedRequirements,
+          storedState
+        ] = await Promise.all([
+          db.getAllTasks(),
+          db.getAllSubtasks(),
+          db.getAllRoles(),
+          db.getAllRequirements(),
+          db.getState()
         ]);
 
-        // Convert stored ISO date strings back to Date objects
-        if (data.tasks) {
-          const tasksWithDates = data.tasks.map((task: any) => ({
-            ...task,
-            createdAt: new Date(task.createdAt)
-          }));
-          setTasks(tasksWithDates);
+        setTasks(storedTasks);
+        setSubtasks(storedSubtasks);
+        
+        // Ensure 'everyone' role exists
+        const hasEveryoneRole = storedRoles.some(role => role.id === 'everyone');
+        if (!hasEveryoneRole) {
+          storedRoles.push({
+            id: 'everyone',
+            name: 'Everyone',
+            createdAt: new Date(),
+            tools: []
+          });
         }
-        if (data.subtasks) {
-          const subtasksWithDates = data.subtasks.map((subtask: any) => ({
-            ...subtask,
-            createdAt: new Date(subtask.createdAt),
-            updatedAt: new Date(subtask.updatedAt)
-          }));
-          setSubtasks(subtasksWithDates);
-        }
-        if (data.roles) {
-          // Ensure 'everyone' role always exists
-          const hasEveryoneRole = data.roles.some((role: Role) => role.id === 'everyone');
-          const rolesWithDates = data.roles.map((role: any) => ({
-            ...role,
-            createdAt: new Date(role.createdAt)
-          }));
-          if (!hasEveryoneRole) {
-            rolesWithDates.push({
-              id: 'everyone',
-              name: 'Everyone',
-              createdAt: new Date(),
-              tools: []
-            });
-          }
-          setRoles(rolesWithDates);
-        }
-        if (data.selectedRole) setSelectedRole(data.selectedRole);
-        if (data.activeTask && data.activeTask.createdAt) {
-          const activeTaskWithDate = {
-            ...data.activeTask,
-            createdAt: new Date(data.activeTask.createdAt)
-          };
-          setActiveTask(activeTaskWithDate);
-        }
-        if (data.elapsedTime) setElapsedTime(data.elapsedTime);
+        setRoles(storedRoles);
+        
+        setRequirements(storedRequirements);
+        setSelectedRole(storedState.selectedRole);
+        setActiveTask(storedState.activeTask);
+        setElapsedTime(storedState.elapsedTime);
       } catch (error) {
-        console.error('Error loading stored data:', error);
+        console.error('Error initializing database:', error);
       }
     };
 
-    loadStoredData();
+    initializeDB();
   }, []);
 
   // Save tasks whenever they change
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
-
-        const tasksForStorage = tasks.map(task => ({
-          ...task,
-          createdAt: task.createdAt.toISOString()
-        }));
-        await chrome.storage.local.set({ tasks: tasksForStorage });
-      } catch (error) {
-        console.error('Error saving tasks:', error);
-      }
-    };
-
-    saveData();
+    db.saveTasks(tasks).catch(error => {
+      console.error('Error saving tasks:', error);
+    });
   }, [tasks]);
 
   // Save subtasks whenever they change
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
-
-        const subtasksForStorage = subtasks.map(subtask => ({
-          ...subtask,
-          createdAt: subtask.createdAt.toISOString(),
-          updatedAt: subtask.updatedAt.toISOString()
-        }));
-        await chrome.storage.local.set({ subtasks: subtasksForStorage });
-      } catch (error) {
-        console.error('Error saving subtasks:', error);
-      }
-    };
-
-    saveData();
+    db.saveSubtasks(subtasks).catch(error => {
+      console.error('Error saving subtasks:', error);
+    });
   }, [subtasks]);
 
   // Save roles whenever they change
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
-
-        const rolesForStorage = roles.map(role => ({
-          ...role,
-          createdAt: role.createdAt.toISOString()
-        }));
-        await chrome.storage.local.set({ roles: rolesForStorage });
-      } catch (error) {
-        console.error('Error saving roles:', error);
-      }
-    };
-
-    saveData();
+    db.saveRoles(roles).catch(error => {
+      console.error('Error saving roles:', error);
+    });
   }, [roles]);
 
-  // Save selectedRole whenever it changes
+  // Save requirements whenever they change
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
+    db.saveRequirements(requirements).catch(error => {
+      console.error('Error saving requirements:', error);
+    });
+  }, [requirements]);
 
-        await chrome.storage.local.set({ selectedRole });
-      } catch (error) {
-        console.error('Error saving selected role:', error);
-      }
-    };
-
-    saveData();
-  }, [selectedRole]);
-
-  // Save activeTask and elapsedTime whenever they change
+  // Save app state whenever relevant parts change
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          console.warn('Chrome storage API not available');
-          return;
-        }
-
-        const activeTaskForStorage = activeTask ? {
-          ...activeTask,
-          createdAt: activeTask.createdAt.toISOString()
-        } : null;
-        await chrome.storage.local.set({ 
-          activeTask: activeTaskForStorage,
-          elapsedTime 
-        });
-      } catch (error) {
-        console.error('Error saving active task and elapsed time:', error);
-      }
-    };
-
-    saveData();
-  }, [activeTask, elapsedTime]);
+    db.saveState({
+      activeTask,
+      selectedRole,
+      elapsedTime
+    }).catch(error => {
+      console.error('Error saving app state:', error);
+    });
+  }, [activeTask, selectedRole, elapsedTime]);
 
   // Tool suggestions data
   const toolCategories = {
@@ -688,19 +553,134 @@ function App() {
     setSubtasks(prev => prev.filter(subtask => subtask.id !== subtaskId));
   };
 
-  // Add useEffect for timer
+  // Add effect to get current URL and auto-activate matching tasks
+  useEffect(() => {
+    const getCurrentUrl = async () => {
+      try {
+        // Check if we're in a Chrome extension context
+        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+          console.warn('Chrome storage API not available');
+          return;
+        }
+
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        const currentTab = tabs[0];
+        if (currentTab?.url) {
+          console.log('Current URL:', currentTab.url);
+          setCurrentUrl(currentTab.url);
+
+          // Load stored state first
+          const storedData = await chrome.storage.local.get([
+            'activeTask',
+            'elapsedTime'
+          ]);
+
+          // Check if the current URL matches any task's tools
+          const matchingTask = tasks.find(task => 
+            task.tools.some(tool => {
+              try {
+                if (!currentTab.url) return false;
+                const currentHostname = new URL(currentTab.url).hostname;
+                const toolHostname = tool.toLowerCase();
+                return currentHostname.includes(toolHostname);
+              } catch {
+                return false;
+              }
+            })
+          );
+
+          // If we have a stored active task, restore it
+          if (storedData.activeTask) {
+            const storedTask = {
+              ...storedData.activeTask,
+              createdAt: new Date(storedData.activeTask.createdAt)
+            };
+            setActiveTask(storedTask);
+            setElapsedTime(storedData.elapsedTime || 0);
+          }
+          // Otherwise, if we found a matching task and no task is currently active
+          else if (matchingTask && (!activeTask || activeTask.id !== matchingTask.id)) {
+            console.log('Auto-activating task:', matchingTask.title);
+            setActiveTask(matchingTask);
+            setElapsedTime(0);
+          }
+        }
+      } catch (error) {
+        console.error('Error getting current URL:', error);
+      }
+    };
+
+    getCurrentUrl();
+    // Check URL periodically for changes
+    const intervalId = setInterval(getCurrentUrl, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      // Save state before unmounting
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+        const activeTaskForStorage = activeTask ? {
+          ...activeTask,
+          createdAt: activeTask.createdAt.toISOString()
+        } : null;
+        chrome.storage.local.set({ 
+          activeTask: activeTaskForStorage,
+          elapsedTime 
+        });
+      }
+    };
+  }, [tasks, activeTask, elapsedTime]);
+
+  // Update timer effect to save state on each tick
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     
     if (activeTask) {
+      // Set initial badge
+      if (chrome.action?.setBadgeText) {
+        chrome.action.setBadgeText({ text: '0:00' });
+        chrome.action.setBadgeBackgroundColor({ color: '#2563eb' }); // blue-600
+      }
+
       intervalId = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
+        setElapsedTime(prev => {
+          const newTime = prev + 1;
+          // Update badge text with formatted time
+          if (chrome.action?.setBadgeText) {
+            const minutes = Math.floor(newTime / 60);
+            const seconds = newTime % 60;
+            const badgeText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            chrome.action.setBadgeText({ text: badgeText });
+          }
+
+          // Save state on each tick
+          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            const activeTaskForStorage = activeTask ? {
+              ...activeTask,
+              createdAt: activeTask.createdAt.toISOString()
+            } : null;
+            chrome.storage.local.set({ 
+              activeTask: activeTaskForStorage,
+              elapsedTime: newTime 
+            });
+          }
+
+          return newTime;
+        });
       }, 1000);
+    } else {
+      // Clear badge when no active task
+      if (chrome.action?.setBadgeText) {
+        chrome.action.setBadgeText({ text: '' });
+      }
     }
 
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
+      }
+      // Clear badge on cleanup
+      if (chrome.action?.setBadgeText) {
+        chrome.action.setBadgeText({ text: '' });
       }
     };
   }, [activeTask]);
@@ -718,51 +698,6 @@ function App() {
     }
     return `${pad(minutes)}:${pad(remainingSeconds)}`;
   };
-
-  // Add effect to get current URL and auto-activate matching tasks
-  useEffect(() => {
-    const getCurrentUrl = async () => {
-      try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const currentTab = tabs[0];
-        if (currentTab?.url) {
-          console.log('Current URL:', currentTab.url);
-          setCurrentUrl(currentTab.url);
-
-          // Check if the current URL matches any task's tools
-          const matchingTask = tasks.find(task => 
-            task.tools.some(tool => {
-              // Create a URL object for proper comparison
-              try {
-                // Ensure we have a valid URL
-                if (!currentTab.url) return false;
-                const currentHostname = new URL(currentTab.url).hostname;
-                const toolHostname = tool.toLowerCase();
-                return currentHostname.includes(toolHostname);
-              } catch {
-                return false;
-              }
-            })
-          );
-
-          // If we found a matching task and it's not already active
-          if (matchingTask && (!activeTask || activeTask.id !== matchingTask.id)) {
-            console.log('Auto-activating task:', matchingTask.title);
-            setActiveTask(matchingTask);
-            setElapsedTime(0); // Reset timer for the new task
-          }
-        }
-      } catch (error) {
-        console.error('Error getting current URL:', error);
-      }
-    };
-
-    getCurrentUrl();
-    // Check URL periodically for changes
-    const intervalId = setInterval(getCurrentUrl, 1000);
-
-    return () => clearInterval(intervalId);
-  }, [tasks, activeTask]); // Add dependencies for tasks and activeTask
 
   // Add export function
   const handleExportData = () => {
