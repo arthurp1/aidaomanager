@@ -1,3 +1,4 @@
+
 {
   "design": {
     "canva.com": {
@@ -15,26 +16,18 @@
         }
       },
       "api": {
-        "credentials": [
-          {"api_key": true},
-          {"oauth2": true}
-        ],
         "endpoints": [
           {
             "url": "/v1/designs",
             "input_params": {
-              "template_id": "tpl_Ax7B9C2k1",
-              "brand_kit": {
-                "colors": ["#FF5733", "#33FF57", "#5733FF"],
-                "fonts": ["Roboto", "Montserrat"],
-                "logo_url": "https://brand.company.com/logo.png"
-              },
-              "dimensions": {
-                "width": 1200,
-                "height": 630,
-                "unit": "px"
+              user_id in api = user of the webextension
+              user_name = discord name of the user
+              project_id = 
+              branch_name
               }
             },
+
+
             "output_format": {
               "design_id": "design_7xK9m2p",
               "created_at": "2024-03-15T10:30:00Z",

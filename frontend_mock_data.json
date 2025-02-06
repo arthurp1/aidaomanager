@@ -1,0 +1,444 @@
+{
+  "tasks": [
+    {
+      "id": "1f6d3028-42af-477a-8502-99515935cb55",
+      "title": "whatever",
+      "roleId": "1c03292a-5984-41f8-9fd1-bc8b197c57a9",
+      "createdAt": "2025-02-06T10:28:30.082Z",
+      "estimatedTime": 3,
+      "tools": [
+        "canva.com"
+      ],
+      "trackedTime": 0,
+      "requirements": [
+        "8k2aqpxaa"
+      ],
+      "requirementsData": [
+        {
+          "id": "8k2aqpxaa",
+          "emoji": "🎨",
+          "alternativeEmojis": [
+            "✨",
+            "👁️"
+          ],
+          "title": "Design Quality",
+          "measure": "Design review score (min 90%)",
+          "alternativeMeasures": [
+            "Design review score (min 90%)",
+            "User engagement metrics"
+          ],
+          "severity": "high",
+          "isAccepted": true,
+          "rules": [
+            {
+              "id": "5sjpk54xf",
+              "performanceLevel": "😍",
+              "text": "Design review score (min 90%) achieved 5 times in a row",
+              "logic": "Consistently meeting the requirement shows exceptional commitment",
+              "pattern": {
+                "condition": "more_than",
+                "threshold": 5,
+                "metric": "Design review score (min 90%)",
+                "timePattern": {
+                  "type": "in_a_row",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "id": "htydg3p54",
+              "performanceLevel": "👋",
+              "text": "Design review score (min 90%) missed once this week",
+              "logic": "A single miss is a good time for a gentle reminder",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 1,
+                "metric": "Design review score (min 90%)",
+                "timePattern": {
+                  "type": "in_week",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "id": "w0ktwbj5x",
+              "performanceLevel": "🤔",
+              "text": "Design review score (min 90%) missed 3 times this month",
+              "logic": "A pattern of misses indicates a need for discussion",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 3,
+                "metric": "Design review score (min 90%)",
+                "timePattern": {
+                  "type": "in_month",
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "description": "Requirement to track Design review score (min 90%)"
+        }
+      ]
+    },
+    {
+      "id": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "title": "Meet with the team",
+      "roleId": "everyone",
+      "createdAt": "2025-02-06T10:27:18.620Z",
+      "estimatedTime": 2,
+      "tools": [
+        "discord.com"
+      ],
+      "trackedTime": 0,
+      "requirements": [
+        "tuifcxh86",
+        "yh8ia9elq"
+      ],
+      "requirementsData": [
+        {
+          "id": "tuifcxh86",
+          "emoji": "💬",
+          "alternativeEmojis": [
+            "📢",
+            "🗣️"
+          ],
+          "title": "Active Participation",
+          "measure": "Daily check-ins completed",
+          "alternativeMeasures": [
+            "Response time (max 4 hours)",
+            "Weekly message count (min 10)"
+          ],
+          "severity": "medium",
+          "isAccepted": true,
+          "rules": [
+            {
+              "id": "trdxpns11",
+              "performanceLevel": "😍",
+              "text": "Daily check-ins completed achieved 5 times in a row",
+              "logic": "Consistently meeting the requirement shows exceptional commitment",
+              "pattern": {
+                "condition": "more_than",
+                "threshold": 5,
+                "metric": "Daily check-ins completed",
+                "timePattern": {
+                  "type": "in_a_row",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "id": "mbsreel4o",
+              "performanceLevel": "👋",
+              "text": "Daily check-ins completed missed once this week",
+              "logic": "A single miss is a good time for a gentle reminder",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 1,
+                "metric": "Daily check-ins completed",
+                "timePattern": {
+                  "type": "in_week",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "id": "jt0969irw",
+              "performanceLevel": "🤔",
+              "text": "Daily check-ins completed missed 3 times this month",
+              "logic": "A pattern of misses indicates a need for discussion",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 3,
+                "metric": "Daily check-ins completed",
+                "timePattern": {
+                  "type": "in_month",
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "description": "Requirement to track Daily check-ins completed"
+        },
+        {
+          "id": "yh8ia9elq",
+          "emoji": "🤝",
+          "alternativeEmojis": [
+            "💡",
+            "🎯"
+          ],
+          "title": "Engagement Quality",
+          "measure": "Substantive messages per week (min 5)",
+          "alternativeMeasures": [
+            "Thread participation rate",
+            "Reaction engagement score"
+          ],
+          "severity": "medium",
+          "isAccepted": true,
+          "rules": [
+            {
+              "id": "pnw0ldaw3",
+              "performanceLevel": "😍",
+              "text": "Substantive messages per week (min 5) achieved 5 times in a row",
+              "logic": "Consistently meeting the requirement shows exceptional commitment",
+              "pattern": {
+                "condition": "more_than",
+                "threshold": 5,
+                "metric": "Substantive messages per week (min 5)",
+                "timePattern": {
+                  "type": "in_a_row",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "id": "vp6p13s1n",
+              "performanceLevel": "👋",
+              "text": "Substantive messages per week (min 5) missed once this week",
+              "logic": "A single miss is a good time for a gentle reminder",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 1,
+                "metric": "Substantive messages per week (min 5)",
+                "timePattern": {
+                  "type": "in_week",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "id": "4di5onn79",
+              "performanceLevel": "🤔",
+              "text": "Substantive messages per week (min 5) missed 3 times this month",
+              "logic": "A pattern of misses indicates a need for discussion",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 3,
+                "metric": "Substantive messages per week (min 5)",
+                "timePattern": {
+                  "type": "in_month",
+                  "value": 1
+                }
+              }
+            }
+          ],
+          "description": "Requirement to track Substantive messages per week (min 5)"
+        }
+      ]
+    }
+  ],
+  "subtasks": [],
+  "roles": [
+    {
+      "id": "1c03292a-5984-41f8-9fd1-bc8b197c57a9",
+      "name": "Social Media Dude",
+      "createdAt": "2025-02-06T10:28:03.496Z",
+      "tools": [
+        "canva.com",
+        "figma.com"
+      ]
+    },
+    {
+      "id": "everyone",
+      "name": "Everyone",
+      "createdAt": "2025-02-06T10:24:46.514Z",
+      "tools": []
+    }
+  ],
+  "requirements": [
+    {
+      "id": "8k2aqpxaa",
+      "emoji": "🎨",
+      "alternativeEmojis": [
+        "✨",
+        "👁️"
+      ],
+      "title": "Design Quality",
+      "measure": "Design review score (min 90%)",
+      "alternativeMeasures": [
+        "Design review score (min 90%)",
+        "User engagement metrics"
+      ],
+      "severity": "high",
+      "isAccepted": true,
+      "rules": [
+        {
+          "id": "5sjpk54xf",
+          "performanceLevel": "😍",
+          "text": "Design review score (min 90%) achieved 5 times in a row",
+          "logic": "Consistently meeting the requirement shows exceptional commitment",
+          "pattern": {
+            "condition": "more_than",
+            "threshold": 5,
+            "metric": "Design review score (min 90%)",
+            "timePattern": {
+              "type": "in_a_row",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "htydg3p54",
+          "performanceLevel": "👋",
+          "text": "Design review score (min 90%) missed once this week",
+          "logic": "A single miss is a good time for a gentle reminder",
+          "pattern": {
+            "condition": "less_than",
+            "threshold": 1,
+            "metric": "Design review score (min 90%)",
+            "timePattern": {
+              "type": "in_week",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "w0ktwbj5x",
+          "performanceLevel": "🤔",
+          "text": "Design review score (min 90%) missed 3 times this month",
+          "logic": "A pattern of misses indicates a need for discussion",
+          "pattern": {
+            "condition": "less_than",
+            "threshold": 3,
+            "metric": "Design review score (min 90%)",
+            "timePattern": {
+              "type": "in_month",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "description": "Requirement to track Design review score (min 90%)"
+    },
+    {
+      "id": "tuifcxh86",
+      "emoji": "💬",
+      "alternativeEmojis": [
+        "📢",
+        "🗣️"
+      ],
+      "title": "Active Participation",
+      "measure": "Daily check-ins completed",
+      "alternativeMeasures": [
+        "Response time (max 4 hours)",
+        "Weekly message count (min 10)"
+      ],
+      "severity": "medium",
+      "isAccepted": true,
+      "rules": [
+        {
+          "id": "trdxpns11",
+          "performanceLevel": "😍",
+          "text": "Daily check-ins completed achieved 5 times in a row",
+          "logic": "Consistently meeting the requirement shows exceptional commitment",
+          "pattern": {
+            "condition": "more_than",
+            "threshold": 5,
+            "metric": "Daily check-ins completed",
+            "timePattern": {
+              "type": "in_a_row",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "mbsreel4o",
+          "performanceLevel": "👋",
+          "text": "Daily check-ins completed missed once this week",
+          "logic": "A single miss is a good time for a gentle reminder",
+          "pattern": {
+            "condition": "less_than",
+            "threshold": 1,
+            "metric": "Daily check-ins completed",
+            "timePattern": {
+              "type": "in_week",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "jt0969irw",
+          "performanceLevel": "🤔",
+          "text": "Daily check-ins completed missed 3 times this month",
+          "logic": "A pattern of misses indicates a need for discussion",
+          "pattern": {
+            "condition": "less_than",
+            "threshold": 3,
+            "metric": "Daily check-ins completed",
+            "timePattern": {
+              "type": "in_month",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "description": "Requirement to track Daily check-ins completed"
+    },
+    {
+      "id": "yh8ia9elq",
+      "emoji": "🤝",
+      "alternativeEmojis": [
+        "💡",
+        "🎯"
+      ],
+      "title": "Engagement Quality",
+      "measure": "Substantive messages per week (min 5)",
+      "alternativeMeasures": [
+        "Thread participation rate",
+        "Reaction engagement score"
+      ],
+      "severity": "medium",
+      "isAccepted": true,
+      "rules": [
+        {
+          "id": "pnw0ldaw3",
+          "performanceLevel": "😍",
+          "text": "Substantive messages per week (min 5) achieved 5 times in a row",
+          "logic": "Consistently meeting the requirement shows exceptional commitment",
+          "pattern": {
+            "condition": "more_than",
+            "threshold": 5,
+            "metric": "Substantive messages per week (min 5)",
+            "timePattern": {
+              "type": "in_a_row",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "vp6p13s1n",
+          "performanceLevel": "👋",
+          "text": "Substantive messages per week (min 5) missed once this week",
+          "logic": "A single miss is a good time for a gentle reminder",
+          "pattern": {
+            "condition": "less_than",
+            "threshold": 1,
+            "metric": "Substantive messages per week (min 5)",
+            "timePattern": {
+              "type": "in_week",
+              "value": 1
+            }
+          }
+        },
+        {
+          "id": "4di5onn79",
+          "performanceLevel": "🤔",
+          "text": "Substantive messages per week (min 5) missed 3 times this month",
+          "logic": "A pattern of misses indicates a need for discussion",
+          "pattern": {
+            "condition": "less_than",
+            "threshold": 3,
+            "metric": "Substantive messages per week (min 5)",
+            "timePattern": {
+              "type": "in_month",
+              "value": 1
+            }
+          }
+        }
+      ],
+      "description": "Requirement to track Substantive messages per week (min 5)"
+    }
+  ],
+  "selectedRole": "1c03292a-5984-41f8-9fd1-bc8b197c57a9",
+  "activeTask": null,
+  "elapsedTime": 11
+}

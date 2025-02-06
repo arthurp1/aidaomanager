@@ -1,0 +1,1 @@
+// send message to discord or frontend or both
