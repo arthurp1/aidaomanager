@@ -8,6 +8,7 @@ contract Counter {
         number = newNumber;
     }
 
+// clusters
     function increment() public {
         number++;
     }
