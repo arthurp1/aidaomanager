@@ -8,6 +8,7 @@ const path = require('path');
 const { fetchAndStoreMessages, client } = require('./tools/discord');
 const { filterDiscordData } = require('./utils/filter_discord_data');
 const { sendDirectMessage, sendChannelMessage } = require('./utils/send_message');
+const taskTracker = require('./tracker/taskTracker');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -157,7 +158,9 @@ const endpoints = {
     '1': { name: 'fetch-discord', method: 'GET', path: '/fetchDiscord', needsId: false, description: 'Fetch messages from Discord' },
     '2': { name: 'filter-discord', method: 'GET', path: '/filterDiscord', needsId: false, description: 'Filter Discord data and generate metrics' },
     '3': { name: 'update-tasks', method: 'POST', path: '/updateTasks', needsId: false, description: 'Update tasks' },
-    '4': { name: 'send-test-message', method: 'POST', path: '/sendMessage', needsId: false, description: 'Send test message to Discord' }
+    '4': { name: 'send-test-message', method: 'POST', path: '/sendMessage', needsId: false, description: 'Send test message to Discord' },
+    '5': { name: 'tracking-status', method: 'GET', path: '/tracking/status', needsId: false, description: 'Get task tracking status' },
+    '6': { name: 'tracking-toggle', method: 'POST', path: '/tracking/toggle', needsId: false, description: 'Toggle task tracking on/off' }
 };
 
 // Add function to get available users
@@ -307,7 +310,7 @@ async function handleTestMessageSending() {
 }
 
 // Modify the CLI command handler
-async function handleCommand(command = '1') {  // Set default command to '1' (fetch-discord)
+async function handleCommand(command = '1') {
     const endpoint = endpoints[command];
     
     // If numeric shortcut is used, get the actual command name
@@ -318,6 +321,49 @@ async function handleCommand(command = '1') {  // Set default command to '1' (fe
         Object.entries(endpoints).forEach(([num, info]) => {
             console.log(`${num}. ${info.name.padEnd(20)} - ${info.description}`);
         });
+        return;
+    }
+
+    // Add new command handlers for tracking
+    if (commandName === 'tracking-status') {
+        const status = taskTracker.getStatus();
+        const tasks = JSON.parse(await fs.readFile(path.join(__dirname, 'data', 'tasks.json'), 'utf8'));
+        
+        console.log('\n=== System Status ===');
+        console.log(`🔄 Tracking Service: ${status.isTracking ? '✅ Active' : '❌ Inactive'}`);
+        console.log(`⏰ Last Run: ${status.lastRun ? new Date(status.lastRun).toLocaleString() : 'Never'}`);
+        console.log(`📊 Active Tasks: ${status.activeTaskCount}`);
+        
+        console.log('\n=== Active Tasks & Requirements ===');
+        
+        for (const task of tasks) {
+            if (task.requirements_active && task.requirements_active.length > 0) {
+                console.log(`\n📌 Task: ${task.title}`);
+                for (const reqId of task.requirements_active) {
+                    const req = task.requirements.find(r => r.id === reqId);
+                    if (req) {
+                        console.log(`   ${req.emoji} ${req.title}`);
+                        console.log(`      Measure: ${req.measure}`);
+                        console.log(`      Severity: ${req.severity}`);
+                    }
+                }
+            }
+        }
+        
+        return;
+    }
+
+    if (commandName === 'tracking-toggle') {
+        const currentStatus = taskTracker.getStatus();
+        const newState = !currentStatus.isTracking;
+        
+        if (newState) {
+            await taskTracker.start();
+            console.log('Task tracking started');
+        } else {
+            await taskTracker.stop();
+            console.log('Task tracking stopped');
+        }
         return;
     }
 
@@ -561,6 +607,34 @@ app.get('/filterDiscord', async (req, res) => {
     }
 });
 
+// Task Tracking Endpoints
+app.get('/api/task-tracking/status', async (req, res) => {
+    try {
+        const status = taskTracker.getStatus();
+        res.json(status);
+    } catch (error) {
+        console.error('Error getting task tracking status:', error);
+        res.status(500).json({ error: 'Failed to get task tracking status' });
+    }
+});
+
+app.post('/api/task-tracking/toggle', async (req, res) => {
+    try {
+        const { enable } = req.body;
+        
+        if (enable) {
+            await taskTracker.start();
+            res.json({ status: 'Task tracking started' });
+        } else {
+            await taskTracker.stop();
+            res.json({ status: 'Task tracking stopped' });
+        }
+    } catch (error) {
+        console.error('Error toggling task tracking:', error);
+        res.status(500).json({ error: 'Failed to toggle task tracking' });
+    }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
@@ -568,7 +642,10 @@ app.use((err, req, res, next) => {
 });
 
 // Start the server and CLI
-app.listen(port, () => {
+app.listen(port, async () => {
     console.log(`Server is running on port ${port}`);
+    await ensureDataDir();
+    await loadData();
+    await taskTracker.start(); // Start task tracking by default
     startCLI();
 });
