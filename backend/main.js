@@ -5,8 +5,9 @@ const { v4: uuidv4 } = require('uuid');
 const readline = require('readline');
 const fs = require('fs').promises;
 const path = require('path');
-const { fetchAndStoreMessages } = require('./tools/discord');
+const { fetchAndStoreMessages, client } = require('./tools/discord');
 const { filterDiscordData } = require('./utils/filter_discord_data');
+const { sendDirectMessage, sendChannelMessage } = require('./utils/send_message');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -125,8 +126,155 @@ const endpoints = {
     '1': { name: 'fetch-discord', method: 'GET', path: '/fetchDiscord', needsId: false, description: 'Fetch messages from Discord' },
     '2': { name: 'filter-discord', method: 'GET', path: '/filterDiscord', needsId: false, description: 'Filter Discord data and generate metrics' },
     '3': { name: 'update-requirements', method: 'POST', path: '/updateRequirements', needsId: false, description: 'Update requirements' },
-    '4': { name: 'update-tasks', method: 'POST', path: '/updateTasks', needsId: false, description: 'Update tasks' }
+    '4': { name: 'update-tasks', method: 'POST', path: '/updateTasks', needsId: false, description: 'Update tasks' },
+    '5': { name: 'send-test-message', method: 'POST', path: '/sendMessage', needsId: false, description: 'Send test message to Discord' }
 };
+
+// Add function to get available users
+async function getAvailableUsers() {
+    try {
+        if (!client.isReady()) {
+            throw new Error('Discord client is not ready');
+        }
+
+        const users = new Map();
+        const guilds = Array.from(client.guilds.cache.values());
+
+        // First try to get users from cache
+        for (const guild of guilds) {
+            guild.members.cache.forEach(member => {
+                if (!member.user.bot) {
+                    users.set(member.user.id, {
+                        id: member.user.id,
+                        username: member.user.username,
+                        displayName: member.displayName
+                    });
+                }
+            });
+        }
+
+        // If cache is empty, fetch a limited number of members
+        if (users.size === 0) {
+            console.log('Cache empty, fetching members (this might take a moment)...');
+            for (const guild of guilds) {
+                try {
+                    // Fetch only first 100 members to keep it fast
+                    const members = await guild.members.list({ limit: 100 });
+                    members.forEach(member => {
+                        if (!member.user.bot) {
+                            users.set(member.user.id, {
+                                id: member.user.id,
+                                username: member.user.username,
+                                displayName: member.displayName
+                            });
+                        }
+                    });
+                } catch (error) {
+                    console.warn(`Warning: Could not fetch members from guild ${guild.name}:`, error.message);
+                    // Continue with other guilds even if one fails
+                    continue;
+                }
+            }
+        }
+
+        const userArray = Array.from(users.values());
+        console.log(`Found ${userArray.length} users`);
+        return userArray;
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        return [];
+    }
+}
+
+// Add function to get general channel
+async function getGeneralChannel() {
+    try {
+        if (!client.isReady()) {
+            throw new Error('Discord client is not ready');
+        }
+
+        const guilds = Array.from(client.guilds.cache.values());
+        for (const guild of guilds) {
+            const channel = guild.channels.cache.find(ch => 
+                ch.name === 'general' && ch.type === 0
+            );
+            if (channel) {
+                return {
+                    id: channel.id,
+                    name: channel.name
+                };
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error('Error fetching general channel:', error);
+        return null;
+    }
+}
+
+// Add function to handle test message sending
+async function handleTestMessageSending() {
+    try {
+        console.log('\nFetching available users...');
+        const users = await getAvailableUsers();
+        const generalChannel = await getGeneralChannel();
+
+        if (users.length === 0) {
+            console.log('No users found.');
+            return;
+        }
+
+        console.log('\nAvailable recipients:');
+        console.log('0. general (channel)');
+        users.forEach((user, index) => {
+            console.log(`${index + 1}. ${user.username} (${user.displayName})`);
+        });
+
+        const recipientIndex = await new Promise(resolve => {
+            rl.question('\nSelect recipient number: ', answer => {
+                resolve(parseInt(answer));
+            });
+        });
+
+        if (isNaN(recipientIndex) || recipientIndex < 0 || recipientIndex > users.length) {
+            console.log('Invalid selection');
+            return;
+        }
+
+        const message = await new Promise(resolve => {
+            rl.question('\nEnter your message: ', resolve);
+        });
+
+        if (!message.trim()) {
+            console.log('Message cannot be empty');
+            return;
+        }
+
+        let result;
+        if (recipientIndex === 0) {
+            if (!generalChannel) {
+                console.log('General channel not found');
+                return;
+            }
+            result = await sendChannelMessage(generalChannel.id, message);
+            console.log(`Sending message to #${generalChannel.name}`);
+        } else {
+            const selectedUser = users[recipientIndex - 1];
+            result = await sendDirectMessage(selectedUser.id, message);
+            console.log(`Sending message to ${selectedUser.username}`);
+        }
+
+        if (result.success) {
+            console.log('Message sent successfully!');
+            console.log('Message ID:', result.messageId);
+            console.log('Timestamp:', result.timestamp);
+        } else {
+            console.log('Failed to send message:', result.error);
+        }
+    } catch (error) {
+        console.error('Error in test message sending:', error);
+    }
+}
 
 // Task handling function
 async function handleTask(data) {
@@ -270,6 +418,11 @@ async function handleCommand(command = '1') {  // Set default command to '1' (fe
         }
     }
 
+    if (commandName === 'send-test-message') {
+        await handleTestMessageSending();
+        return;
+    }
+
     let data = null;
 
     if (mockData) {
@@ -405,12 +558,45 @@ app.get('/sendMessage/:id', (req, res) => {
 
 app.post('/sendMessage', async (req, res) => {
     try {
-        const newMessage = { id: uuidv4(), timestamp: new Date(), ...req.body };
+        const { userId, channelId, message } = req.body;
+        
+        if (!message) {
+            return res.status(400).json({ error: 'Message content is required' });
+        }
+
+        let result;
+        
+        // If userId is provided, send a direct message
+        if (userId) {
+            result = await sendDirectMessage(userId, message);
+        }
+        // If channelId is provided, send a channel message
+        else if (channelId) {
+            result = await sendChannelMessage(channelId, message);
+        }
+        else {
+            return res.status(400).json({ error: 'Either userId or channelId is required' });
+        }
+
+        if (!result.success) {
+            return res.status(500).json({ error: result.error });
+        }
+
+        // Store the message in our local storage
+        const newMessage = {
+            id: result.messageId,
+            content: result.content,
+            timestamp: result.timestamp,
+            userId,
+            channelId
+        };
         messages.push(newMessage);
         await saveMessages();
-        res.status(201).json(newMessage);
+
+        res.status(201).json(result);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to save message' });
+        console.error('Error sending message:', error);
+        res.status(500).json({ error: 'Failed to send message' });
     }
 });
 
