@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TaskTable } from './components/TaskTable';
-import { AIAssistant } from './components/AIAssistant';
+import { AIAssistant, AIAssistantHandle } from './components/AIAssistant';
 import { TaskForm } from './components/TaskForm';
 import {
   Cog6ToothIcon,
@@ -9,13 +9,15 @@ import {
   ClipboardDocumentListIcon,
   SunIcon,
   MoonIcon,
-  SparklesIcon
+  PaperAirplaneIcon
 } from '@heroicons/react/24/outline';
 import './App.css';
 import { db } from './db';
 import { Task, SubTask, Role, Requirement } from './types';
 import mockWalletData from './data/wallet.json';
 import { createCoinbaseWalletSDK } from '@coinbase/wallet-sdk';
+import { JsonRpcProvider } from '@ethersproject/providers';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Add new interfaces after existing ones
 interface Organization {
@@ -47,9 +49,14 @@ interface WalletInfo {
   organizations: Organization[];
   socials: SocialConnections;
   smartWallet?: WalletSDK;
+  chainId: number;
 }
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
+
+// Initialize the model
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -87,6 +94,11 @@ function App() {
   const [socialInputs, setSocialInputs] = useState<SocialConnections>({});
   const [isConnecting, setIsConnecting] = useState(false);
   const [smartWalletError, setSmartWalletError] = useState<string | null>(null);
+  const [aiInput, setAiInput] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [devMode, setDevMode] = useState<boolean>(true); // Dev mode enabled by default
+  const aiAssistantRef = useRef<AIAssistantHandle>(null);
 
   // Initialize database and load data
   useEffect(() => {
@@ -125,7 +137,10 @@ function App() {
         setRoles(storedRoles);
         
         setRequirements(storedRequirements);
-        setSelectedRole(storedState.selectedRole);
+        // Set selectedRole to 'everyone' if it's not set or invalid
+        setSelectedRole(storedState.selectedRole && storedRoles.some(r => r.id === storedState.selectedRole) 
+          ? storedState.selectedRole 
+          : 'everyone');
         setActiveTask(storedState.activeTask);
         setElapsedTime(storedState.elapsedTime);
       } catch (error) {
@@ -955,7 +970,11 @@ function App() {
   };
 
   const handleDevTest = () => {
-    setWalletInfo(mockWalletData.mockWallets[0]);
+    const mockWallet = {
+      ...mockWalletData.mockWallets[0],
+      chainId: devMode ? 11155111 : 1 // Add chainId based on dev mode
+    };
+    setWalletInfo(mockWallet);
   };
 
   const handleCreateOrg = () => {
@@ -1017,48 +1036,63 @@ function App() {
     setEditingSocials(false);
   };
 
-  // Initialize Smart Wallet SDK
-  useEffect(() => {
-    const initializeSmartWallet = async () => {
+  // Add a helper function to fetch balance
+  const fetchBalance = async (provider: EthereumProvider, address: string) => {
+    try {
+      const balanceHex = await provider.request({ 
+        method: 'eth_getBalance',
+        params: [address, 'latest']
+      }) as string;
+      const balanceInWei = parseInt(balanceHex, 16);
+      const balanceInEth = balanceInWei / 1e18;
+      return balanceInEth.toFixed(4);
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+      return '0.0000';
+    }
+  };
+
+  // Update handleDevModeToggle to properly fetch balance
+  const handleDevModeToggle = async () => {
+    setDevMode(!devMode);
+    
+    // If we have a connected wallet, switch networks
+    if (walletInfo?.smartWallet) {
+      const provider = walletInfo.smartWallet.getProvider();
       try {
-        const smartWallet = createCoinbaseWalletSDK({
-          appName: 'AIDAO Manager'
-        });
+        if (!devMode) { // Switching to dev mode (Sepolia)
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0xaa36a7' }], // 11155111 in hex
+          });
+        } else { // Switching to mainnet
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0x1' }], // 1 in hex
+          });
+        }
         
-        // Get the provider
-        const provider = smartWallet.getProvider();
+        // Get updated chain ID and balance
+        const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+        const chainId = parseInt(chainIdHex, 16);
         
-        // Check if we have a connected account
-        try {
-          const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
-          if (accounts && accounts.length > 0) {
-            const address = accounts[0];
-            const balanceHex = await provider.request({ 
-              method: 'eth_getBalance',
-              params: [address, 'latest']
-            }) as string;
-            const balance = parseInt(balanceHex, 16) / 1e18; // Convert from wei to ETH
-            
-            setWalletInfo({
-              address,
-              balance: `${balance.toFixed(4)} ETH`,
-              organizations: [],
-              socials: {},
-              smartWallet
-            });
-          }
-        } catch (error) {
-          console.error('Error checking wallet connection:', error);
+        const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
+        if (accounts.length > 0) {
+          const balance = await fetchBalance(provider, accounts[0]);
+          
+          setWalletInfo(prev => prev ? {
+            ...prev,
+            chainId,
+            balance: `${balance} ETH`
+          } : null);
         }
       } catch (error) {
-        console.error('Error initializing smart wallet:', error);
-        setSmartWalletError(error instanceof Error ? error.message : 'Failed to initialize smart wallet');
+        console.error('Error switching networks:', error);
       }
-    };
+    }
+  };
 
-    initializeSmartWallet();
-  }, []);
-
+  // Update handleConnectWallet to use the new fetchBalance function
   const handleConnectWallet = async () => {
     setIsConnecting(true);
     setSmartWalletError(null);
@@ -1074,19 +1108,36 @@ function App() {
       const accounts = await provider.request({ method: 'eth_requestAccounts' }) as string[];
       const address = accounts[0];
       
-      // Get balance
-      const balanceHex = await provider.request({ 
-        method: 'eth_getBalance',
-        params: [address, 'latest']
-      }) as string;
-      const balance = parseInt(balanceHex, 16) / 1e18; // Convert from wei to ETH
+      // Get current chain ID
+      const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+      let chainId = parseInt(chainIdHex, 16);
+      
+      // If in dev mode and not on Sepolia, switch to Sepolia
+      if (devMode && chainId !== 11155111) {
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: '0xaa36a7' }], // 11155111 in hex
+          });
+          // Get updated chain ID
+          const updatedChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+          chainId = parseInt(updatedChainIdHex, 16);
+        } catch (error) {
+          console.error('Error switching to Sepolia:', error);
+          // Continue with current chain if switch fails
+        }
+      }
+      
+      // Get balance using the new helper function
+      const balance = await fetchBalance(provider, address);
       
       setWalletInfo({
         address,
-        balance: `${balance.toFixed(4)} ETH`,
+        balance: `${balance} ETH`,
         organizations: [],
         socials: {},
-        smartWallet
+        smartWallet,
+        chainId
       });
       
       // Ensure we stay on or return to the profile view after successful connection
@@ -1099,559 +1150,99 @@ function App() {
     }
   };
 
+  // Update initializeSmartWallet to use the new fetchBalance function
+  useEffect(() => {
+    const initializeSmartWallet = async () => {
+      try {
+        const smartWallet = createCoinbaseWalletSDK({
+          appName: 'AIDAO Manager'
+        });
+        
+        // Get the provider
+        const provider = smartWallet.getProvider();
+        
+        // Check if we have a connected account
+        try {
+          const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
+          if (accounts && accounts.length > 0) {
+            const address = accounts[0];
+            
+            // Get current chain ID
+            const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
+            let chainId = parseInt(chainIdHex, 16);
+            
+            // Get balance using the new helper function
+            const balance = await fetchBalance(provider, address);
+            
+            setWalletInfo({
+              address,
+              balance: `${balance} ETH`,
+              organizations: [],
+              socials: {},
+              smartWallet,
+              chainId
+            });
+          }
+        } catch (error) {
+          console.error('Error checking wallet connection:', error);
+        }
+      } catch (error) {
+        console.error('Error initializing smart wallet:', error);
+        setSmartWalletError(error instanceof Error ? error.message : 'Failed to initialize smart wallet');
+      }
+    };
+
+    initializeSmartWallet();
+  }, [devMode]);
+
+  const handleAiSubmit = async (input: string) => {
+    if (!input.trim()) return;
+
+    // Create and add user message
+    const userMessage = {
+      id: crypto.randomUUID(),
+      text: input,
+      sender: 'user' as const,
+      timestamp: new Date()
+    };
+    aiAssistantRef.current?.addMessage(userMessage);
+
+    setIsAiLoading(true);
+    setAiError(null);
+
+    try {
+      const result = await model.generateContent(input);
+      const response = await result.response;
+      const aiMessage = {
+        id: crypto.randomUUID(),
+        text: response.text(),
+        sender: 'ai' as const,
+        timestamp: new Date()
+      };
+      aiAssistantRef.current?.addMessage(aiMessage);
+    } catch (err) {
+      console.error('AI Assistant error:', err);
+      setAiError(err instanceof Error ? err.message : 'An error occurred while connecting to the AI service');
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  // Add this function to switch to AI tab
+  const switchToAITab = useCallback(() => {
+    setCurrentView('ai');
+  }, []);
+
   return (
     <div 
       ref={appRef}
-      className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col"
+      className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col rounded-lg"
     >
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Tasks View */}
-        {currentView === 'tasks' && (
-          <>
-            {/* Active Task Section */}
-            {activeTask && (
-              <div className="bg-white dark:bg-dark-surface border-b dark:border-gray-700">
-                <div className="px-3 py-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setActiveTask(null)}
-                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                      >
-                        ■
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <h2 className="font-medium">{activeTask.title}</h2>
-                        <div className="flex items-center gap-1">
-                          <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                            Manual tracking
-                          </span>
-                          <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                            {formatTime(elapsedTime)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {formatTrackedTime(activeTask.trackedTime)}/{activeTask.estimatedTime}h
-                    </span>
-                  </div>
-                  <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
-                    {activeTask.tools.map(tool => (
-                      <a
-                        key={tool}
-                        href={`https://${tool}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-gray-600 dark:hover:text-gray-300"
-                      >
-                        {tool}
-                      </a>
-                    ))}
-                  </div>
-                  {/* Subtasks for active task */}
-                  <TaskTable
-                    tasks={subtasks.filter(subtask => subtask.taskId === activeTask.id)}
-                    onCreateTask={(newSubtask) => handleCreateSubtask({ 
-                      ...newSubtask, 
-                      roleId: activeTask.roleId,
-                      taskId: activeTask.id 
-                    })}
-                    onToggleComplete={handleToggleSubtaskComplete}
-                    onDeleteTask={handleDeleteSubtask}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Role Selection */}
-            <div 
-              className="px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-x-auto relative bg-white dark:bg-dark-surface"
-              onMouseEnter={() => setIsHoveringRoles(true)}
-              onMouseLeave={() => setIsHoveringRoles(false)}
-            >
-              {roles.map(role => (
-                <button
-                  key={role.id}
-                  onClick={() => setSelectedRole(role.id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    handleEditRole(role);
-                  }}
-                  className={`px-3 py-1 text-sm rounded whitespace-nowrap ${
-                    selectedRole === role.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 dark:bg-dark-surface hover:bg-gray-300 dark:hover:bg-dark-hover'
-                  }`}
-                >
-                  {role.name}
-                </button>
-              ))}
-              {isHoveringRoles && (
-                <button
-                  onClick={() => {
-                    setEditingRole(null);
-                    setNewRoleName('');
-                    setIsRoleModalOpen(true);
-                  }}
-                  className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 flex items-center gap-1"
-                >
-                  <span className="text-lg leading-none">+</span>
-                  <span>Role</span>
-                </button>
-              )}
-            </div>
-            
-            {/* Task Management Section */}
-            <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
-              {selectedRole ? (
-                <div className="flex flex-col">
-                  {/* Tasks and Subtasks List */}
-                  <div 
-                    className="flex-1"
-                    onMouseEnter={() => setIsHoveringTaskList(true)}
-                    onMouseLeave={() => setIsHoveringTaskList(false)}
-                  >
-                    {getFilteredTasks(selectedRole).map(task => (
-                      <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50 last:border-b-0">
-                        {/* Task Header */}
-                        <div 
-                          className="group flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 cursor-pointer"
-                          onClick={() => toggleTaskCollapse(task.id)}
-                        >
-                          <button 
-                            className="opacity-0 group-hover:opacity-100 mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
-                            onClick={(e) => handlePlayTask(task, e)}
-                          >
-                            {activeTask?.id === task.id ? '■' : '▶'}
-                          </button>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{task.title}</span>
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {formatTrackedTime(task.trackedTime)}/{task.estimatedTime}h
-                              </span>
-                            </div>
-                            <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500">
-                              {task.tools.map(tool => (
-                                <a
-                                  key={tool}
-                                  href={`https://${tool}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="hover:text-gray-600 dark:hover:text-gray-300"
-                                >
-                                  {tool}
-                                </a>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Tabs and Content */}
-                        {!task.isCollapsed && (
-                          <div>
-                            {/* Tabs - removed border-t and adjusted text size */}
-                            <div className="flex">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTabChange(task.id, 'subtasks');
-                                }}
-                                className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                                  (!taskTabs[task.id] || taskTabs[task.id] === 'subtasks')
-                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                              >
-                                Subtasks
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleTabChange(task.id, 'requirements');
-                                }}
-                                className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                                  taskTabs[task.id] === 'requirements'
-                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                                }`}
-                              >
-                                Requirements
-                              </button>
-                            </div>
-
-                            {/* Tab Content */}
-                            <div onClick={(e) => e.stopPropagation()}>
-                              {(!taskTabs[task.id] || taskTabs[task.id] === 'subtasks') ? (
-                                <TaskTable
-                                  tasks={subtasks.filter(subtask => subtask.taskId === task.id)}
-                                  onCreateTask={(newSubtask) => handleCreateSubtask({ 
-                                    ...newSubtask, 
-                                    roleId: selectedRole,
-                                    taskId: task.id 
-                                  })}
-                                  onToggleComplete={handleToggleSubtaskComplete}
-                                  onDeleteTask={handleDeleteSubtask}
-                                />
-                              ) : (
-                                <div className="p-3">
-                                  {task.requirements.length > 0 ? (
-                                    <div className="space-y-2">
-                                      {requirements
-                                        .filter(req => task.requirements.includes(req.id))
-                                        .map(req => (
-                                          <div key={req.id} className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded">
-                                            <span className="text-lg">{req.emoji}</span>
-                                            <div>
-                                              <div className="text-sm font-medium dark:text-gray-200">{req.title}</div>
-                                              <div className="text-xs text-gray-600 dark:text-gray-400">
-                                                Measured by: {req.measure}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        ))
-                                      }
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                                      No requirements set for this task
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-
-                    {/* Propose New Task Button */}
-                    {(isHoveringTaskList || getFilteredTasks(selectedRole).length === 0) && !showTaskForm && (
-                      <button
-                        onClick={() => setShowTaskForm(true)}
-                        className="w-full px-3 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 flex items-center justify-center gap-2 group transition-colors"
-                      >
-                        <span className="text-lg leading-none group-hover:text-blue-500">+</span>
-                        <span className="group-hover:text-blue-500">Add New Task</span>
-                      </button>
-                    )}
-
-                    {/* Task Creation Form */}
-                    {showTaskForm && (
-                      <TaskForm
-                        onCreateTask={handleCreateTask}
-                        onCancel={() => setShowTaskForm(false)}
-                        toolCategories={toolCategories}
-                      />
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  Select or create a role to manage tasks
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {/* AI Assistant View */}
-        {currentView === 'ai' && (
-          <div className="flex-1 bg-white dark:bg-dark-surface overflow-hidden">
-            <AIAssistant />
-          </div>
-        )}
-
-        {/* Profile View */}
-        {currentView === 'profile' && (
-          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
-            {/* Dev Test Button */}
-            <button
-              onClick={handleDevTest}
-              className="absolute top-2 left-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
-            >
-              Dev Test
-            </button>
-
-            <div className="p-4">
-              <div className="max-w-lg mx-auto space-y-4">
-                {/* Login Section */}
-                {!walletInfo ? (
-                  <div className="p-4 border dark:border-gray-700 rounded-lg">
-                    <h2 className="text-lg font-medium mb-4">Login</h2>
-                    {smartWalletError && (
-                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded text-sm">
-                        {smartWalletError}
-                      </div>
-                    )}
-                    <button
-                      onClick={handleConnectWallet}
-                      disabled={isConnecting}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                          <span>Connecting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                          </svg>
-                          Connect Smart Wallet
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {/* Wallet Info Section */}
-                    <div className="p-4 border dark:border-gray-700 rounded-lg">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-medium">Wallet</h2>
-                        <button
-                          onClick={handleLogout}
-                          className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Logout
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Address:</span>
-                          <span className="text-sm font-mono">{walletInfo.address}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">Balance:</span>
-                          <span className="text-sm font-medium">{walletInfo.balance}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Social Connections */}
-                    <div className="p-4 border dark:border-gray-700 rounded-lg">
-                      <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-medium">Connected Accounts</h2>
-                        <button
-                          onClick={() => {
-                            setEditingSocials(!editingSocials);
-                            setSocialInputs(walletInfo.socials || {});
-                          }}
-                          className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          {editingSocials ? 'Cancel' : 'Edit'}
-                        </button>
-                      </div>
-                      
-                      {editingSocials ? (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Email</label>
-                            <input
-                              type="email"
-                              value={socialInputs.email || ''}
-                              onChange={(e) => setSocialInputs(prev => ({ ...prev, email: e.target.value }))}
-                              placeholder="your@email.com"
-                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Discord</label>
-                            <input
-                              type="text"
-                              value={socialInputs.discord || ''}
-                              onChange={(e) => setSocialInputs(prev => ({ ...prev, discord: e.target.value }))}
-                              placeholder="username#0000"
-                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Telegram</label>
-                            <input
-                              type="text"
-                              value={socialInputs.telegram || ''}
-                              onChange={(e) => setSocialInputs(prev => ({ ...prev, telegram: e.target.value }))}
-                              placeholder="@username"
-                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">GitHub</label>
-                            <input
-                              type="text"
-                              value={socialInputs.github || ''}
-                              onChange={(e) => setSocialInputs(prev => ({ ...prev, github: e.target.value }))}
-                              placeholder="username"
-                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <button
-                            onClick={handleSaveSocials}
-                            className="w-full mt-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {Object.entries(walletInfo.socials || {}).map(([platform, value]) => value && (
-                            <div key={platform} className="flex items-center justify-between">
-                              <span className="text-sm capitalize text-gray-500 dark:text-gray-400">{platform}:</span>
-                              <span className="text-sm">{value}</span>
-                            </div>
-                          ))}
-                          {(!walletInfo.socials || Object.keys(walletInfo.socials).length === 0) && (
-                            <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                              No accounts connected
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Organizations Section */}
-                    <div className="p-4 border dark:border-gray-700 rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-lg font-medium">Organizations</h2>
-                        <button
-                          onClick={() => setIsCreateOrgModalOpen(true)}
-                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          Create
-                        </button>
-                      </div>
-
-                      {/* Organizations List */}
-                      <div className="space-y-2">
-                        {walletInfo.organizations.map(org => (
-                          <div
-                            key={org.id}
-                            className="group flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded hover:bg-gray-100 dark:hover:bg-dark-hover/70"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div>
-                                <div className="font-medium">{org.name}</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">{org.role}</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {org.role === 'Admin' && (
-                                <button
-                                  className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                                >
-                                  Roles
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleLeaveOrg(org.id)}
-                                className="px-2 py-1 text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                              >
-                                Leave
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Join Organization */}
-                      <div className="mt-3 pt-3 border-t dark:border-gray-700">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={inviteCode}
-                            onChange={(e) => setInviteCode(e.target.value)}
-                            placeholder="Enter invite code"
-                            className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
-                          />
-                          <button
-                            onClick={handleJoinOrg}
-                            disabled={!inviteCode.trim()}
-                            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Join
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings View */}
-        {currentView === 'settings' && (
-          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
-            <div className="p-4">
-              <div className="max-w-lg mx-auto space-y-6">
-                <h2 className="text-lg font-medium mb-4">Settings</h2>
-                
-                {/* Theme Settings */}
-                <div className="p-4 border dark:border-gray-700 rounded-lg">
-                  <h3 className="text-sm font-medium mb-4">Appearance</h3>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 dark:text-gray-300">Dark Mode</span>
-                    <button
-                      onClick={toggleTheme}
-                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-gray-400 dark:text-gray-500"
-                      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                      {isDark ? (
-                        <SunIcon className="w-5 h-5" />
-                      ) : (
-                        <MoonIcon className="w-5 h-5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Data Management */}
-                <div className="p-4 border dark:border-gray-700 rounded-lg">
-                  <h3 className="text-sm font-medium mb-2">Data Management</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    Export your tasks, roles, and tracking data as a JSON file
-                  </p>
-                  <button
-                    onClick={handleExportData}
-                    className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Export Data
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* URL Bar */}
-        <div className="border-t dark:border-gray-700 bg-white dark:bg-dark-surface">
-          {activeTask && activeTask.tools.length > 0 && (
-            <div className="px-3 py-1 border-b dark:border-gray-700">
-              <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 overflow-x-auto">
-                {activeTask.tools.map(tool => (
-                  <a
-                    key={tool}
-                    href={`https://${tool}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-gray-600 dark:hover:text-gray-300 whitespace-nowrap"
-                  >
-                    {tool}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+      {/* Dev Mode URL Display */}
+      {devMode && (
+        <div className="sticky top-0 z-20 bg-gray-50 dark:bg-dark-surface border-b dark:border-gray-700">
           <div className="px-3 py-1">
-            <div className="text-xs text-gray-400 dark:text-gray-500 truncate" style={{ minHeight: '1.25rem' }}>
+            <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
               {currentUrl ? (
                 <a 
                   href={currentUrl} 
@@ -1667,10 +1258,578 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Tasks View */}
+        {currentView === 'tasks' && (
+          <>
+        {/* Active Task Section */}
+        {activeTask && (
+          <div className="bg-white dark:bg-dark-surface border-b dark:border-gray-700">
+            <div className="px-3 py-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTask(null)}
+                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                  >
+                    ■
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-medium">{activeTask.title}</h2>
+                    <div className="flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                        Manual tracking
+                      </span>
+                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                        {formatTime(elapsedTime)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatTrackedTime(activeTask.trackedTime)}/{activeTask.estimatedTime}h
+                </span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
+                {activeTask.tools.map(tool => (
+                  <a
+                    key={tool}
+                    href={`https://${tool}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-gray-600 dark:hover:text-gray-300"
+                  >
+                    {tool}
+                  </a>
+                ))}
+              </div>
+              {/* Subtasks for active task */}
+              <TaskTable
+                tasks={subtasks.filter(subtask => subtask.taskId === activeTask.id)}
+                onCreateTask={(newSubtask) => handleCreateSubtask({ 
+                  ...newSubtask, 
+                  roleId: activeTask.roleId,
+                  taskId: activeTask.id 
+                })}
+                onToggleComplete={handleToggleSubtaskComplete}
+                onDeleteTask={handleDeleteSubtask}
+              />
+            </div>
+          </div>
+        )}
+
+            {/* Role Selection */}
+        <div 
+              className="sticky top-0 z-10 px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-hidden relative bg-white dark:bg-dark-surface"
+          onMouseEnter={() => setIsHoveringRoles(true)}
+          onMouseLeave={() => setIsHoveringRoles(false)}
+        >
+          {roles.map(role => (
+            <button
+              key={role.id}
+              onClick={() => setSelectedRole(role.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                handleEditRole(role);
+              }}
+              className={`px-3 py-1 text-sm rounded whitespace-nowrap ${
+                selectedRole === role.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 dark:bg-dark-surface hover:bg-gray-300 dark:hover:bg-dark-hover'
+              }`}
+            >
+              {role.name}
+            </button>
+          ))}
+          {isHoveringRoles && (
+            <button
+              onClick={() => {
+                setEditingRole(null);
+                setNewRoleName('');
+                setIsRoleModalOpen(true);
+              }}
+              className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 flex items-center gap-1"
+            >
+              <span className="text-lg leading-none">+</span>
+              <span>Role</span>
+            </button>
+          )}
+        </div>
+        
+        {/* Task Management Section */}
+            <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+          {selectedRole ? (
+            <div className="flex flex-col">
+              {/* Tasks and Subtasks List */}
+              <div 
+                className="flex-1"
+                onMouseEnter={() => setIsHoveringTaskList(true)}
+                onMouseLeave={() => setIsHoveringTaskList(false)}
+              >
+                {getFilteredTasks(selectedRole).map(task => (
+                  <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50 last:border-b-0">
+                    {/* Task Header */}
+                    <div 
+                      className="group flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 cursor-pointer"
+                      onClick={() => toggleTaskCollapse(task.id)}
+                    >
+                      <button 
+                        className="opacity-0 group-hover:opacity-100 mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
+                        onClick={(e) => handlePlayTask(task, e)}
+                      >
+                        {activeTask?.id === task.id ? '■' : '▶'}
+                      </button>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{task.title}</span>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            {formatTrackedTime(task.trackedTime)}/{task.estimatedTime}h
+                          </span>
+                        </div>
+                        <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500">
+                          {task.tools.map(tool => (
+                            <a
+                              key={tool}
+                              href={`https://${tool}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                              {tool}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tabs and Content */}
+                    {!task.isCollapsed && (
+                      <div>
+                        {/* Tabs - removed border-t and adjusted text size */}
+                        <div className="flex">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTabChange(task.id, 'subtasks');
+                            }}
+                            className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                              (!taskTabs[task.id] || taskTabs[task.id] === 'subtasks')
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                          >
+                            Subtasks
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTabChange(task.id, 'requirements');
+                            }}
+                            className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                              taskTabs[task.id] === 'requirements'
+                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                            }`}
+                          >
+                            Requirements
+                          </button>
+                        </div>
+
+                        {/* Tab Content */}
+                        <div onClick={(e) => e.stopPropagation()}>
+                          {(!taskTabs[task.id] || taskTabs[task.id] === 'subtasks') ? (
+                            <TaskTable
+                              tasks={subtasks.filter(subtask => subtask.taskId === task.id)}
+                              onCreateTask={(newSubtask) => handleCreateSubtask({ 
+                                ...newSubtask, 
+                                roleId: selectedRole,
+                                taskId: task.id 
+                              })}
+                              onToggleComplete={handleToggleSubtaskComplete}
+                              onDeleteTask={handleDeleteSubtask}
+                            />
+                          ) : (
+                            <div className="p-3">
+                              {task.requirements.length > 0 ? (
+                                <div className="space-y-2">
+                                  {requirements
+                                    .filter(req => task.requirements.includes(req.id))
+                                    .map(req => (
+                                      <div key={req.id} className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded">
+                                        <span className="text-lg">{req.emoji}</span>
+                                        <div>
+                                          <div className="text-sm font-medium dark:text-gray-200">{req.title}</div>
+                                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                                            Measured by: {req.measure}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  }
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                  No requirements set for this task
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Propose New Task Button */}
+                {(isHoveringTaskList || getFilteredTasks(selectedRole).length === 0) && !showTaskForm && (
+                  <button
+                    onClick={() => setShowTaskForm(true)}
+                    className="w-full px-3 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 flex items-center justify-center gap-2 group transition-colors"
+                  >
+                    <span className="text-lg leading-none group-hover:text-blue-500">+</span>
+                    <span className="group-hover:text-blue-500">Add New Task</span>
+                  </button>
+                )}
+
+                {/* Task Creation Form */}
+                {showTaskForm && (
+                  <TaskForm
+                    onCreateTask={handleCreateTask}
+                    onCancel={() => setShowTaskForm(false)}
+                    toolCategories={toolCategories}
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+              Select or create a role to manage tasks
+            </div>
+          )}
+        </div>
+          </>
+        )}
+
+        {/* Messages View */}
+        {currentView === 'ai' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-hidden">
+            <AIAssistant 
+              ref={aiAssistantRef}
+              isLoading={isAiLoading}
+              error={aiError}
+            />
+      </div>
+        )}
+
+        {/* Profile View */}
+        {currentView === 'profile' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+            {/* Dev Test Button */}
+            <button
+              onClick={handleDevTest}
+              className="absolute top-1 left-1 px-1.5 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              Dev Test
+            </button>
+
+            <div className="p-2">
+              <div className="max-w-lg mx-auto space-y-2">
+                {/* Login Section */}
+                {!walletInfo ? (
+                  <div className="p-3 border dark:border-gray-700 rounded-lg">
+                    <h2 className="text-base font-medium mb-2">Login</h2>
+                    {smartWalletError && (
+                      <div className="mb-2 p-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded text-sm">
+                        {smartWalletError}
+            </div>
+                    )}
+                    <button
+                      onClick={handleConnectWallet}
+                      disabled={isConnecting}
+                      className="w-full px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isConnecting ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Connecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                          Connect Smart Wallet
+                        </>
+                      )}
+                    </button>
+          </div>
+                ) : (
+                  <>
+                    {/* Wallet Info Section */}
+                    <div className="p-3 border dark:border-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-base font-medium">Wallet</h2>
+                        <button
+                          onClick={handleLogout}
+                          className="px-2 py-1 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Address:</span>
+                          <span className="font-mono">{walletInfo.address}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">
+                            Balance:
+                            {devMode && (
+                              <span className="ml-1 text-xs text-gray-400">(Sepolia)</span>
+                            )}
+                          </span>
+                          <span className="font-medium">{walletInfo.balance}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-500 dark:text-gray-400">Network:</span>
+                          <span className="font-medium">
+                            {walletInfo.chainId === 1 ? 'Mainnet' : 'Sepolia'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Social Connections - Compact Version */}
+                    <div className="p-3 border dark:border-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-base font-medium">Connected Accounts</h2>
+                        <button
+                          onClick={() => {
+                            setEditingSocials(!editingSocials);
+                            setSocialInputs(walletInfo.socials || {});
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {editingSocials ? 'Cancel' : 'Edit'}
+                        </button>
+                      </div>
+                      
+                      {editingSocials ? (
+                        <div className="space-y-2">
+                          {['email', 'discord', 'telegram', 'github'].map(platform => (
+                            <div key={platform} className="flex gap-2">
+                              <input
+                                type={platform === 'email' ? 'email' : 'text'}
+                                value={socialInputs[platform as keyof SocialConnections] || ''}
+                                onChange={(e) => setSocialInputs(prev => ({ ...prev, [platform]: e.target.value }))}
+                                placeholder={platform.charAt(0).toUpperCase() + platform.slice(1)}
+                                className="flex-1 px-2 py-1 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                              />
+                            </div>
+                          ))}
+                          <button
+                            onClick={handleSaveSocials}
+                            className="w-full mt-2 px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {Object.entries(walletInfo.socials || {}).map(([platform, value]) => value && (
+                            <div key={platform} className="flex items-center justify-between text-sm">
+                              <span className="capitalize text-gray-500 dark:text-gray-400">{platform}:</span>
+                              <span>{value}</span>
+                            </div>
+                          ))}
+                          {(!walletInfo.socials || Object.keys(walletInfo.socials).length === 0) && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-1">
+                              No accounts connected
+                            </div>
+            )}
+          </div>
+                      )}
+        </div>
+
+                    {/* Organizations Section - Compact Version */}
+                    <div className="p-3 border dark:border-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-base font-medium">Organizations</h2>
+                        <button
+                          onClick={() => setIsCreateOrgModalOpen(true)}
+                          className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Create
+                        </button>
+                      </div>
+
+                      {/* Organizations List */}
+                      <div className="space-y-1">
+                        {walletInfo.organizations.map(org => (
+                          <div
+                            key={org.id}
+                            className="group flex items-center justify-between p-1.5 bg-gray-50 dark:bg-dark-hover rounded hover:bg-gray-100 dark:hover:bg-dark-hover/70"
+                          >
+                            <div>
+                              <div className="text-sm font-medium">{org.name}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{org.role}</div>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {org.role === 'Admin' && (
+                                <button className="px-1.5 py-0.5 text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
+                                  Roles
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleLeaveOrg(org.id)}
+                                className="px-1.5 py-0.5 text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                              >
+                                Leave
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Join Organization */}
+                      <div className="mt-2 pt-2 border-t dark:border-gray-700">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
+                            placeholder="Enter invite code"
+                            className="flex-1 px-2 py-1 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                          />
+                          <button
+                            onClick={handleJoinOrg}
+                            disabled={!inviteCode.trim()}
+                            className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Join
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings View - Compact Version */}
+        {currentView === 'settings' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+            <div className="p-2">
+              <div className="max-w-lg mx-auto">
+                <h2 className="text-base font-medium mb-2 px-1">Settings</h2>
+                
+                {/* Settings List */}
+                <div className="border dark:border-gray-700 rounded-lg divide-y dark:divide-gray-700">
+                  {/* Appearance Settings */}
+                  <div className="p-2.5 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium">Dark Mode</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Switch between light and dark theme
+                      </p>
+                    </div>
+                    <button
+                      onClick={toggleTheme}
+                      className="relative inline-flex h-5 w-9 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors focus:outline-none"
+                    >
+                      <span className={`${isDark ? 'translate-x-5' : 'translate-x-1'} inline-block h-3 w-3 transform rounded-full bg-white transition-transform`} />
+                    </button>
+                  </div>
+
+                  {/* Dev Mode Setting */}
+                  <div className="p-2.5 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium">Developer Mode</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Enable Sepolia testnet and developer features
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleDevModeToggle}
+                      className="relative inline-flex h-5 w-9 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors focus:outline-none"
+                    >
+                      <span className={`${devMode ? 'translate-x-5 bg-blue-600' : 'translate-x-1 bg-white'} inline-block h-3 w-3 transform rounded-full transition-transform`} />
+                    </button>
+                  </div>
+
+                  {/* Data Export Setting */}
+                  <div className="p-2.5 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium">Export Data</h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Download your tasks, roles, and tracking data
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleExportData}
+                      className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Export
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* AI Chat Input - Sticky to bottom */}
+      <div className="sticky bottom-12 z-10 border-t dark:border-gray-700 bg-white dark:bg-dark-surface overflow-hidden">
+        <form className="flex" onSubmit={(e) => {
+          e.preventDefault();
+          if (!aiInput.trim()) return;
+          handleAiSubmit(aiInput);
+          setAiInput('');
+        }}>
+          <input
+            type="text"
+            placeholder="Ask AI..."
+            value={aiInput}
+            onChange={(e) => setAiInput(e.target.value)}
+            className="flex-1 px-3 py-1.5 bg-transparent text-sm focus:outline-none"
+            disabled={isAiLoading}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (aiInput.trim()) {
+                  handleAiSubmit(aiInput);
+                  setAiInput('');
+                }
+                switchToAITab();
+              }
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!aiInput.trim() || isAiLoading}
+            className="px-3 py-1.5 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            {isAiLoading ? (
+              <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+            ) : (
+              <PaperAirplaneIcon className="w-4 h-4" />
+            )}
+          </button>
+        </form>
       </div>
 
       {/* Bottom Navigation */}
-      <div className="h-12 border-t dark:border-gray-700 bg-white dark:bg-dark-surface flex items-center justify-around px-3">
+      <div className="sticky bottom-0 z-10 h-12 border-t dark:border-gray-700 bg-white dark:bg-dark-surface flex items-center justify-around px-3 overflow-hidden">
         <button
           onClick={() => setCurrentView('tasks')}
           className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors ${
@@ -1685,7 +1844,7 @@ function App() {
           className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors ${
             currentView === 'ai' ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'
           }`}
-          title="AI Assistant"
+          title="Messages"
         >
           <ChatBubbleLeftIcon className="w-5 h-5" />
         </button>
@@ -1711,92 +1870,104 @@ function App() {
 
       {/* Role Modal */}
       {isRoleModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-dark-surface p-4 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">
-              {editingRole ? 'Edit Role' : 'New Role'}
-            </h3>
-            <input
-              type="text"
-              placeholder="Role name"
-              value={newRoleName}
-              onChange={(e) => setNewRoleName(e.target.value)}
-              className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-4"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  editingRole ? handleUpdateRole() : handleCreateRole();
-                }
-              }}
-              autoFocus
-            />
-
-            {/* Tool Search */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tools
-              </label>
-              <input
-                type="text"
-                placeholder="Search tools..."
-                value={toolSearch}
-                onChange={(e) => setToolSearch(e.target.value)}
-                className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-2"
-              />
-              
-              {/* Selected Tools */}
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedTools.map(tool => (
-                  <div 
-                    key={tool}
-                    className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm"
-                  >
-                    <span>{tool}</span>
-                    <button
-                      onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool))}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tool Suggestions */}
-              {toolSearch && (
-                <div className="max-h-40 overflow-y-auto border rounded dark:border-gray-600">
-                  {getFilteredTools().map(tool => (
-                    <button
-                      key={tool.url}
-                      onClick={() => {
-                        setSelectedTools(prev => [...prev, tool.url]);
-                        setToolSearch('');
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600"
-                    >
-                      <div className="text-sm font-medium">{tool.url}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {tool.description} • {tool.category}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl w-full max-w-2xl mx-4 h-[85vh] flex flex-col">
+            <div className="px-3 py-2 border-b dark:border-gray-700">
+              <h2 className="text-xs text-gray-500 dark:text-gray-400">
+                {editingRole ? 'Edit Role' : 'Create New Role'}
+              </h2>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {/* Role Name Input */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
+                  Role Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter role name..."
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      editingRole ? handleUpdateRole() : handleCreateRole();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {/* Tool Search */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
+                  Tools
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search tools..."
+                  value={toolSearch}
+                  onChange={(e) => setToolSearch(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                />
+                
+                {/* Selected Tools */}
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {selectedTools.map(tool => (
+                    <div 
+                      key={tool}
+                      className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                    >
+                      <span>{tool}</span>
+                      <button
+                        onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool))}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tool Suggestions */}
+                {toolSearch && (
+                  <div className="mt-1.5 border rounded-md shadow-lg dark:border-gray-600 max-h-48 overflow-y-auto">
+                    {getFilteredTools().map(tool => (
+                      <button
+                        key={tool.url}
+                        onClick={() => {
+                          setSelectedTools(prev => [...prev, tool.url]);
+                          setToolSearch('');
+                        }}
+                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600"
+                      >
+                        <div className="text-sm font-medium dark:text-gray-200">{tool.url}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {tool.description} • {tool.category}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 border-t dark:border-gray-700 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setIsRoleModalOpen(false);
                   setSelectedTools([]);
                   setToolSearch('');
                 }}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400"
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 Cancel
               </button>
               <button
                 onClick={editingRole ? handleUpdateRole : handleCreateRole}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                disabled={!newRoleName.trim()}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingRole ? 'Update' : 'Create'}
               </button>
@@ -1807,32 +1978,42 @@ function App() {
 
       {/* Create Organization Modal */}
       {isCreateOrgModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-dark-surface p-4 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">Create Organization</h3>
-            <input
-              type="text"
-              placeholder="Organization name"
-              value={newOrgName}
-              onChange={(e) => setNewOrgName(e.target.value)}
-              className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-4"
-              autoFocus
-            />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl w-full max-w-2xl mx-4 h-[85vh] flex flex-col">
+            <div className="px-3 py-2 border-b dark:border-gray-700">
+              <h2 className="text-xs text-gray-500 dark:text-gray-400">Create New Organization</h2>
+            </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
+                  Organization Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter organization name..."
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="p-3 border-t dark:border-gray-700 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setIsCreateOrgModalOpen(false);
                   setNewOrgName('');
                 }}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400"
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateOrg}
                 disabled={!newOrgName.trim()}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create
               </button>

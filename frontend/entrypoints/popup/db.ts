@@ -3,6 +3,15 @@ import { Task, SubTask, Role, Requirement } from './types';
 const DB_NAME = 'aidaoDB';
 const DB_VERSION = 1;
 
+type MessageSource = 'ai' | 'discord' | 'telegram';
+
+interface Message {
+  id: string;
+  text: string;
+  sender: 'user' | MessageSource;
+  timestamp: Date;
+}
+
 interface DBSchema {
   tasks: Task[];
   subtasks: SubTask[];
@@ -11,6 +20,14 @@ interface DBSchema {
   activeTask: Task | null;
   selectedRole: string;
   elapsedTime: number;
+}
+
+interface AppState {
+  activeTask: Task | null;
+  selectedRole: string;
+  elapsedTime: number;
+  messages?: Message[];
+  messageScrollPosition?: number;
 }
 
 class DatabaseService {
@@ -181,7 +198,7 @@ class DatabaseService {
   }
 
   // App State
-  async getState(): Promise<{ activeTask: Task | null; selectedRole: string; elapsedTime: number }> {
+  async getState(): Promise<AppState> {
     return new Promise((resolve, reject) => {
       const store = this.getStore('state');
       const request = store.get('appState');
@@ -196,7 +213,7 @@ class DatabaseService {
     });
   }
 
-  async saveState(state: { activeTask: Task | null; selectedRole: string; elapsedTime: number }): Promise<void> {
+  async saveState(state: AppState): Promise<void> {
     const store = this.getStore('state', 'readwrite');
     const stateToSave = {
       id: 'appState',
