@@ -1,7 +1,7 @@
 [
   {
-    "name": "discord",
-    "url": "https://discord.com",
+    "name": "Discord",
+    "url": "discord.com",
     "logomark": "/discord-logomark.png",
     "publicDocs": "https://discord.com/developers/docs",
     "schema": {
@@ -56,8 +56,8 @@
     }
   },
   {
-    "name": "github",
-    "url": "https://github.com",
+    "name": "GitHub",
+    "url": "github.com",
     "logomark": "/github-logomark.png",
     "publicDocs": "https://docs.github.com/en/rest",
     "schema": {
@@ -100,8 +100,8 @@
     }
   },
   {
-    "name": "notion",
-    "url": "https://notion.so",
+    "name": "Notion",
+    "url": "notion.so",
     "logomark": "/notion-logomark.png",
     "publicDocs": "https://developers.notion.com/reference",
     "schema": {
@@ -132,8 +132,8 @@
     }
   },
   {
-    "name": "telegram",
-    "url": "https://telegram.org",
+    "name": "Telegram",
+    "url": "telegram.org",
     "logomark": "/telegram-logomark.png",
     "publicDocs": "https://core.telegram.org/bots/api",
     "schema": {
@@ -164,8 +164,8 @@
     }
   },
   {
-    "name": "jira",
-    "url": "https://www.atlassian.com/software/jira",
+    "name": "Jira",
+    "url": "atlassian.com/software/jira",
     "logomark": "/jira-logomark.png",
     "publicDocs": "https://developer.atlassian.com/cloud/jira/platform/rest/v3",
     "schema": {
@@ -196,8 +196,8 @@
     }
   },
   {
-    "name": "google-meet",
-    "url": "https://meet.google.com",
+    "name": "Google Meet",
+    "url": "meet.google.com",
     "logomark": "/google-meet-logomark.png",
     "publicDocs": "https://developers.google.com/calendar/api/guides/create-events",
     "schema": {
@@ -224,8 +224,8 @@
     }
   },
   {
-    "name": "zoom",
-    "url": "https://zoom.us",
+    "name": "Zoom",
+    "url": "zoom.us",
     "logomark": "/zoom-logomark.png",
     "publicDocs": "https://marketplace.zoom.us/docs/api-reference/zoom-api",
     "schema": {
@@ -256,8 +256,8 @@
     }
   },
   {
-    "name": "whatsapp",
-    "url": "https://www.whatsapp.com",
+    "name": "WhatsApp",
+    "url": "whatsapp.com",
     "logomark": "/whatsapp-logomark.png",
     "publicDocs": "https://developers.facebook.com/docs/whatsapp/cloud-api",
     "schema": {
@@ -292,8 +292,8 @@
     }
   },
   {
-    "name": "miro",
-    "url": "https://miro.com",
+    "name": "Miro",
+    "url": "miro.com",
     "logomark": "/miro-logomark.png",
     "publicDocs": "https://developers.miro.com/reference/api-reference",
     "schema": {
@@ -324,8 +324,8 @@
     }
   },
   {
-    "name": "mailchimp",
-    "url": "https://mailchimp.com",
+    "name": "Mailchimp",
+    "url": "mailchimp.com",
     "logomark": "/mailchimp-logomark.png",
     "publicDocs": "https://mailchimp.com/developer/marketing/api/",
     "schema": {
@@ -356,8 +356,8 @@
     }
   },
   {
-    "name": "trello",
-    "url": "https://trello.com",
+    "name": "Trello",
+    "url": "trello.com",
     "logomark": "/trello-logomark.png",
     "publicDocs": "https://developer.atlassian.com/cloud/trello/rest/",
     "schema": {
@@ -392,8 +392,8 @@
     }
   },
   {
-    "name": "figma",
-    "url": "https://www.figma.com",
+    "name": "Figma",
+    "url": "figma.com",
     "logomark": "/figma-logomark.png",
     "publicDocs": "https://www.figma.com/developers/api",
     "schema": {
@@ -424,8 +424,8 @@
     }
   },
   {
-    "name": "google-calendar",
-    "url": "https://calendar.google.com",
+    "name": "Google Calendar",
+    "url": "calendar.google.com",
     "logomark": "/google-calendar-logomark.png",
     "publicDocs": "https://developers.google.com/calendar/api/v3/reference",
     "schema": {
@@ -456,8 +456,8 @@
     }
   },
   {
-    "name": "google-drive",
-    "url": "https://drive.google.com",
+    "name": "Google Drive",
+    "url": "drive.google.com",
     "logomark": "/google-drive-logomark.png",
     "publicDocs": "https://developers.google.com/drive/api/v3/reference",
     "schema": {
