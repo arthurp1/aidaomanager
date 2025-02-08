@@ -1,0 +1,32 @@
+{
+  "mockWallets": [
+    {
+      "address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+      "balance": "1.245 ETH",
+      "organizations": [
+        {
+          "name": "DAO Builders",
+          "role": "Admin",
+          "id": "dao-builders-01"
+        },
+        {
+          "name": "AI Agents DAO",
+          "role": "Member",
+          "id": "ai-agents-dao-02"
+        }
+      ],
+      "socials": {
+        "email": "demo@example.com",
+        "discord": "demo#1234",
+        "telegram": "@demouser",
+        "github": "demo-user"
+      }
+    },
+    {
+      "address": "0x123...789",
+      "balance": "0.5 ETH",
+      "organizations": [],
+      "socials": {}
+    }
+  ]
+} 
