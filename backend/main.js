@@ -6,6 +6,7 @@ const readline = require('readline');
 const fs = require('fs').promises;
 const path = require('path');
 const { fetchAndStoreMessages } = require('./tools/discord');
+const { filterDiscordData } = require('./utils/filter_discord_data');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -121,9 +122,10 @@ loadData().catch(console.error);
 
 // Available endpoints for CLI
 const endpoints = {
-    'update-requirements': { method: 'POST', path: '/updateRequirements', needsId: false },
-    'update-tasks': { method: 'POST', path: '/updateTasks', needsId: false },
-    'fetch-discord': { method: 'GET', path: '/fetchDiscord', needsId: false },
+    '1': { name: 'fetch-discord', method: 'GET', path: '/fetchDiscord', needsId: false, description: 'Fetch messages from Discord' },
+    '2': { name: 'filter-discord', method: 'GET', path: '/filterDiscord', needsId: false, description: 'Filter Discord data and generate metrics' },
+    '3': { name: 'update-requirements', method: 'POST', path: '/updateRequirements', needsId: false, description: 'Update requirements' },
+    '4': { name: 'update-tasks', method: 'POST', path: '/updateTasks', needsId: false, description: 'Update tasks' }
 };
 
 // Task handling function
@@ -230,17 +232,21 @@ async function handleTask(data) {
 }
 
 // Modify the CLI command handler
-async function handleCommand(command) {
+async function handleCommand(command = '1') {  // Set default command to '1' (fetch-discord)
     const endpoint = endpoints[command];
-    if (!endpoint) {
-        console.log('Available commands:');
-        Object.entries(endpoints).forEach(([cmd, info]) => {
-            console.log(`${cmd.padEnd(20)} [${info.method}] ${info.path}`);
+    
+    // If numeric shortcut is used, get the actual command name
+    const commandName = endpoint?.name || command;
+    
+    if (!endpoint && !Object.values(endpoints).find(e => e.name === command)) {
+        console.log('Available commands (use number or name):');
+        Object.entries(endpoints).forEach(([num, info]) => {
+            console.log(`${num}. ${info.name.padEnd(20)} - ${info.description}`);
         });
         return;
     }
 
-    if (command === 'fetch-discord') {
+    if (commandName === 'fetch-discord') {
         console.log('Fetching Discord messages...');
         try {
             const messages = await fetchAndStoreMessages();
@@ -248,6 +254,18 @@ async function handleCommand(command) {
             return;
         } catch (error) {
             console.error('Error fetching Discord messages:', error);
+            return;
+        }
+    }
+
+    if (commandName === 'filter-discord') {
+        console.log('Filtering Discord data and generating metrics...');
+        try {
+            const filteredData = await filterDiscordData();
+            console.log(`Successfully generated metrics for ${filteredData.length} users`);
+            return;
+        } catch (error) {
+            console.error('Error filtering Discord data:', error);
             return;
         }
     }
@@ -262,7 +280,7 @@ async function handleCommand(command) {
         });
 
         if (useMockData) {
-            if (command === 'update-tasks' && mockData.tasks?.length > 0) {
+            if (commandName === 'update-tasks' && mockData.tasks?.length > 0) {
                 data = mockData.tasks;
                 console.log(`Using mock data with ${data.length} items`);
                 const result = await handleTask(data);
@@ -270,7 +288,7 @@ async function handleCommand(command) {
                 console.log('Tasks:', result.tasks.length, 'items');
                 console.log('Requirements:', result.requirements.length, 'items');
                 return;
-            } else if (command === 'update-requirements' && mockData.requirements?.length > 0) {
+            } else if (commandName === 'update-requirements' && mockData.requirements?.length > 0) {
                 data = mockData.requirements;
             }
             if (data) {
@@ -298,7 +316,7 @@ async function handleCommand(command) {
     }
 
     // Simulate the API call locally
-    switch (command) {
+    switch (commandName) {
         case 'update-requirements':
             requirements = data.map(req => ({
                 id: req.id || uuidv4(),
@@ -317,21 +335,21 @@ async function handleCommand(command) {
     }
 }
 
-// Start CLI interface
+// Modify the CLI interface
 function startCLI() {
-    console.log('\nAvailable commands:');
-    Object.entries(endpoints).forEach(([cmd, info]) => {
-        console.log(`${cmd.padEnd(20)} [${info.method}] ${info.path}`);
+    console.log('\nAvailable commands (use number or name):');
+    Object.entries(endpoints).forEach(([num, info]) => {
+        console.log(`${num}. ${info.name.padEnd(20)} - ${info.description}`);
     });
-    console.log('\nEnter a command (or "exit" to quit):');
+    console.log('\nEnter a command number or name (or "exit" to quit):');
 
     rl.on('line', async (input) => {
         if (input.toLowerCase() === 'exit') {
             rl.close();
             process.exit(0);
         }
-        await handleCommand(input.trim());
-        console.log('\nEnter a command (or "exit" to quit):');
+        await handleCommand(input.trim() || '1');  // Use '1' (fetch-discord) when input is empty
+        console.log('\nEnter a command number or name (or "exit" to quit):');
     });
 }
 
@@ -442,6 +460,17 @@ app.get('/fetchDiscord', async (req, res) => {
     } catch (error) {
         console.error('Error fetching Discord messages:', error);
         res.status(500).json({ error: 'Failed to fetch Discord messages' });
+    }
+});
+
+// Add new endpoint for filtering Discord data
+app.get('/filterDiscord', async (req, res) => {
+    try {
+        const filteredData = await filterDiscordData();
+        res.json({ success: true, count: filteredData.length, data: filteredData });
+    } catch (error) {
+        console.error('Error filtering Discord data:', error);
+        res.status(500).json({ error: 'Failed to filter Discord data' });
     }
 });
 

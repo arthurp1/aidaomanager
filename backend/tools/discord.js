@@ -4,8 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const MESSAGES_DATA_FILE = path.join(DATA_DIR, 'discord_messages.json');
-const MESSAGES_DOCS_FILE = path.join(DATA_DIR, 'discord_messages_docs.md');
+const MESSAGES_DATA_FILE = path.join(DATA_DIR, 'discord.json');
 
 // Initialize Discord client with necessary intents
 const client = new Client({
@@ -13,6 +12,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildMessageReactions,
     ]
 });
 
@@ -37,33 +37,29 @@ async function saveMessages(messages) {
     await fs.writeFile(MESSAGES_DATA_FILE, JSON.stringify(messages, null, 2));
 }
 
-async function generateDocs(sampleMessage) {
-    const docs = `# Discord Messages Data Structure
-
-This document describes the structure of the discord_messages.json file.
-
-## Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | String | Unique message ID |
-| content | String | Message content |
-| authorId | String | ID of the message author |
-| authorUsername | String | Username of the message author |
-| channelId | String | ID of the channel |
-| channelName | String | Name of the channel |
-| timestamp | String | ISO timestamp of when the message was sent |
-| editedTimestamp | String | ISO timestamp of last edit (null if not edited) |
-| attachments | Array | List of attachment URLs |
-| embeds | Array | List of message embeds |
-
-## Example Data
-
-\`\`\`json
-${JSON.stringify(sampleMessage, null, 2)}
-\`\`\``;
-
-    await fs.writeFile(MESSAGES_DOCS_FILE, docs);
+async function fetchMessageReactions(message) {
+    const reactions = [];
+    
+    // Fetch all reactions for the message
+    for (const reaction of message.reactions.cache.values()) {
+        // Fetch users who reacted (Discord API limits to 100 users per reaction)
+        const users = await reaction.users.fetch();
+        
+        reactions.push({
+            emoji: {
+                name: reaction.emoji.name,
+                id: reaction.emoji.id,
+                animated: reaction.emoji.animated || false,
+            },
+            count: reaction.count,
+            users: users.map(user => ({
+                userId: user.id,
+                username: user.username
+            }))
+        });
+    }
+    
+    return reactions;
 }
 
 async function fetchAndStoreMessages() {
@@ -106,6 +102,9 @@ async function fetchAndStoreMessages() {
 
             for (const message of fetchedMessages.values()) {
                 if (!existingIds.has(message.id)) {
+                    // Fetch reactions for this message
+                    const reactions = await fetchMessageReactions(message);
+                    
                     messages.push({
                         id: message.id,
                         content: message.content,
@@ -116,7 +115,8 @@ async function fetchAndStoreMessages() {
                         timestamp: message.createdAt.toISOString(),
                         editedTimestamp: message.editedAt?.toISOString() || null,
                         attachments: Array.from(message.attachments.values()).map(a => a.url),
-                        embeds: message.embeds.map(e => e.data)
+                        embeds: message.embeds.map(e => e.data),
+                        reactions: reactions
                     });
                     existingIds.add(message.id);
                 }
@@ -128,11 +128,6 @@ async function fetchAndStoreMessages() {
         // Combine and save messages
         const allMessages = [...existingMessages, ...messages];
         await saveMessages(allMessages);
-
-        // Generate docs if we have messages
-        if (allMessages.length > 0) {
-            await generateDocs(allMessages[0]);
-        }
 
         return allMessages;
     } catch (error) {
