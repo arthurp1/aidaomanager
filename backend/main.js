@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const readline = require('readline');
 const fs = require('fs').promises;
 const path = require('path');
+const { fetchAndStoreMessages } = require('./tools/discord');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -122,6 +123,7 @@ loadData().catch(console.error);
 const endpoints = {
     'update-requirements': { method: 'POST', path: '/updateRequirements', needsId: false },
     'update-tasks': { method: 'POST', path: '/updateTasks', needsId: false },
+    'fetch-discord': { method: 'GET', path: '/fetchDiscord', needsId: false },
 };
 
 // Task handling function
@@ -236,6 +238,18 @@ async function handleCommand(command) {
             console.log(`${cmd.padEnd(20)} [${info.method}] ${info.path}`);
         });
         return;
+    }
+
+    if (command === 'fetch-discord') {
+        console.log('Fetching Discord messages...');
+        try {
+            const messages = await fetchAndStoreMessages();
+            console.log(`Successfully fetched ${messages.length} messages from Discord`);
+            return;
+        } catch (error) {
+            console.error('Error fetching Discord messages:', error);
+            return;
+        }
     }
 
     let data = null;
@@ -417,6 +431,17 @@ app.put('/fetchToolData/:id', async (req, res) => {
         res.json(toolData[index]);
     } catch (error) {
         res.status(500).json({ error: 'Failed to update tool data' });
+    }
+});
+
+// Add Discord endpoint
+app.get('/fetchDiscord', async (req, res) => {
+    try {
+        const messages = await fetchAndStoreMessages();
+        res.json({ success: true, count: messages.length });
+    } catch (error) {
+        console.error('Error fetching Discord messages:', error);
+        res.status(500).json({ error: 'Failed to fetch Discord messages' });
     }
 });
 
