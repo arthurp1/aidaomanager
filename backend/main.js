@@ -24,14 +24,12 @@ app.use(bodyParser.json());
 
 // File paths
 const DATA_DIR = path.join(__dirname, 'data');
-const REQUIREMENTS_FILE = path.join(DATA_DIR, 'requirements.json');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const TOOL_DATA_FILE = path.join(DATA_DIR, 'tool_data.json');
-const MOCK_DATA_FILE = path.join(__dirname, '..', 'frontend_mock_data.json');
+const MOCK_DATA_FILE = path.join(__dirname, '..', 'frontend_tasks.json');
 
 // In-memory storage (replace with your database in production)
-let requirements = [];
 let tasks = [];
 let messages = [];
 let toolData = [];
@@ -59,11 +57,6 @@ async function loadMockData() {
 async function loadData() {
     await ensureDataDir();
     try {
-        requirements = JSON.parse(await fs.readFile(REQUIREMENTS_FILE, 'utf8'));
-    } catch {
-        requirements = [];
-    }
-    try {
         tasks = JSON.parse(await fs.readFile(TASKS_FILE, 'utf8'));
     } catch {
         tasks = [];
@@ -80,10 +73,6 @@ async function loadData() {
     }
 }
 
-async function saveRequirements() {
-    await fs.writeFile(REQUIREMENTS_FILE, JSON.stringify(requirements, null, 2));
-}
-
 async function saveTasks() {
     await fs.writeFile(TASKS_FILE, JSON.stringify(tasks, null, 2));
 }
@@ -96,23 +85,65 @@ async function saveToolData() {
     await fs.writeFile(TOOL_DATA_FILE, JSON.stringify(toolData, null, 2));
 }
 
-// Bulk update functions
-async function bulkUpdateTasks(newTasks) {
-    tasks = newTasks.map(task => ({
-        id: task.id || uuidv4(),
-        ...task
-    }));
-    await saveTasks();
-    return tasks;
-}
+// Task handling function
+async function handleTask(data) {
+    try {
+        // Ensure we have arrays to work with
+        const tasksToProcess = Array.isArray(data) ? data : [data];
+        
+        // Process tasks
+        const processedTasks = tasksToProcess.map(task => {
+            // Extract only the necessary fields for tasks
+            const {
+                id = uuidv4(),
+                title,
+                roleId,
+                createdAt,
+                estimatedTime,
+                tools,
+                trackedTime,
+                ...otherFields
+            } = task;
 
-async function bulkUpdateRequirements(newRequirements) {
-    requirements = newRequirements.map(req => ({
-        id: req.id || uuidv4(),
-        ...req
-    }));
-    await saveRequirements();
-    return requirements;
+            // Construct the clean task object
+            return {
+                id,
+                title,
+                roleId,
+                createdAt,
+                estimatedTime,
+                tools,
+                trackedTime,
+                ...otherFields
+            };
+        });
+
+        // Update tasks array while preserving existing tasks not in the update
+        const taskMap = new Map();
+        
+        // Add existing tasks to map
+        tasks.forEach(task => {
+            taskMap.set(task.id, task);
+        });
+
+        // Update or add new tasks
+        processedTasks.forEach(task => {
+            taskMap.set(task.id, task);
+        });
+
+        // Convert map back to array
+        tasks = Array.from(taskMap.values());
+
+        // Save tasks file
+        await saveTasks();
+
+        return {
+            tasks
+        };
+    } catch (error) {
+        console.error('Error in handleTask:', error);
+        throw error;
+    }
 }
 
 // Load mock data on startup
@@ -125,9 +156,8 @@ loadData().catch(console.error);
 const endpoints = {
     '1': { name: 'fetch-discord', method: 'GET', path: '/fetchDiscord', needsId: false, description: 'Fetch messages from Discord' },
     '2': { name: 'filter-discord', method: 'GET', path: '/filterDiscord', needsId: false, description: 'Filter Discord data and generate metrics' },
-    '3': { name: 'update-requirements', method: 'POST', path: '/updateRequirements', needsId: false, description: 'Update requirements' },
-    '4': { name: 'update-tasks', method: 'POST', path: '/updateTasks', needsId: false, description: 'Update tasks' },
-    '5': { name: 'send-test-message', method: 'POST', path: '/sendMessage', needsId: false, description: 'Send test message to Discord' }
+    '3': { name: 'update-tasks', method: 'POST', path: '/updateTasks', needsId: false, description: 'Update tasks' },
+    '4': { name: 'send-test-message', method: 'POST', path: '/sendMessage', needsId: false, description: 'Send test message to Discord' }
 };
 
 // Add function to get available users
@@ -276,109 +306,6 @@ async function handleTestMessageSending() {
     }
 }
 
-// Task handling function
-async function handleTask(data) {
-    try {
-        // Ensure we have arrays to work with
-        const tasksToProcess = Array.isArray(data) ? data : [data];
-        
-        // Extract requirements from tasks and maintain existing requirements
-        const allRequirements = new Map(); // Use Map to track by ID
-        
-        // First, add existing requirements to the map
-        requirements.forEach(req => {
-            allRequirements.set(req.id, req);
-        });
-
-        // Then process new requirements from tasks
-        tasksToProcess.forEach(task => {
-            if (task.requirementsData) {
-                task.requirementsData.forEach(req => {
-                    if (req.id) {
-                        // Update or add requirement
-                        allRequirements.set(req.id, {
-                            ...allRequirements.get(req.id) || {},
-                            ...req
-                        });
-                    } else {
-                        // New requirement without ID
-                        const newId = uuidv4();
-                        allRequirements.set(newId, { ...req, id: newId });
-                    }
-                });
-            }
-        });
-
-        // Update requirements array
-        requirements = Array.from(allRequirements.values());
-
-        // Process tasks
-        const processedTasks = tasksToProcess.map(task => {
-            // Extract only the necessary fields for tasks
-            const {
-                id = uuidv4(),
-                title,
-                roleId,
-                createdAt,
-                estimatedTime,
-                tools,
-                trackedTime,
-                requirements: existingRequirements,
-                requirementsData,
-                ...otherFields
-            } = task;
-
-            // Get requirement IDs, either from requirementsData or existing requirements
-            const requirementIds = requirementsData 
-                ? requirementsData.map(req => req.id || allRequirements.get(req.id)?.id).filter(Boolean)
-                : existingRequirements || [];
-
-            // Construct the clean task object
-            return {
-                id,
-                title,
-                roleId,
-                createdAt,
-                estimatedTime,
-                tools,
-                trackedTime,
-                requirements: requirementIds,
-                ...otherFields
-            };
-        });
-
-        // Update tasks array while preserving existing tasks not in the update
-        const taskMap = new Map();
-        
-        // Add existing tasks to map
-        tasks.forEach(task => {
-            taskMap.set(task.id, task);
-        });
-
-        // Update or add new tasks
-        processedTasks.forEach(task => {
-            taskMap.set(task.id, task);
-        });
-
-        // Convert map back to array
-        tasks = Array.from(taskMap.values());
-
-        // Save both files
-        await Promise.all([
-            saveRequirements(),
-            saveTasks()
-        ]);
-
-        return {
-            tasks,
-            requirements
-        };
-    } catch (error) {
-        console.error('Error in handleTask:', error);
-        throw error;
-    }
-}
-
 // Modify the CLI command handler
 async function handleCommand(command = '1') {  // Set default command to '1' (fetch-discord)
     const endpoint = endpoints[command];
@@ -437,12 +364,9 @@ async function handleCommand(command = '1') {  // Set default command to '1' (fe
                 data = mockData.tasks;
                 console.log(`Using mock data with ${data.length} items`);
                 const result = await handleTask(data);
-                console.log('Updated tasks and requirements:');
+                console.log('Updated tasks:');
                 console.log('Tasks:', result.tasks.length, 'items');
-                console.log('Requirements:', result.requirements.length, 'items');
                 return;
-            } else if (commandName === 'update-requirements' && mockData.requirements?.length > 0) {
-                data = mockData.requirements;
             }
             if (data) {
                 console.log(`Using mock data with ${data.length} items`);
@@ -470,20 +394,10 @@ async function handleCommand(command = '1') {  // Set default command to '1' (fe
 
     // Simulate the API call locally
     switch (commandName) {
-        case 'update-requirements':
-            requirements = data.map(req => ({
-                id: req.id || uuidv4(),
-                ...req
-            }));
-            await saveRequirements();
-            console.log('Updated requirements:', requirements);
-            break;
-
         case 'update-tasks':
             const result = await handleTask(data);
-            console.log('Updated tasks and requirements:');
+            console.log('Updated tasks:');
             console.log('Tasks:', result.tasks.length, 'items');
-            console.log('Requirements:', result.requirements.length, 'items');
             break;
     }
 }
@@ -513,21 +427,8 @@ app.post('/updateTasks', async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('Error handling tasks:', error);
-        res.status(500).json({ error: 'Failed to update tasks and requirements' });
+        res.status(500).json({ error: 'Failed to update tasks' });
     }
-});
-
-// Requirements endpoints
-app.get('/updateRequirements', (req, res) => {
-    res.json(requirements);
-});
-
-app.get('/updateRequirements/:id', (req, res) => {
-    const requirement = requirements.find(r => r.id === req.params.id);
-    if (!requirement) {
-        return res.status(404).json({ error: 'Requirement not found' });
-    }
-    res.json(requirement);
 });
 
 // Tasks endpoints
