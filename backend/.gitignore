@@ -1,2 +1,7 @@
 node_modules/
 .env
+data/discord_filtered.json
+data/discord.json
+data/message_history.json
+data/task_tracker_logs.json
+data/tasks.json

@@ -1,6 +1,281 @@
 {
   "evaluations": [
     {
+      "timestamp": "2025-02-08T22:11:01.763Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "The community has been moderately active with daily message counts ranging from 3 to 18, indicating regular engagement.",
+        "proof": "Multiple users have shown consistent daily presence, maintaining moderate message activity."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:10:04.827Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Ok",
+        "message": "This server is performing acceptably in terms of response times. However, there's room for improvement.",
+        "proof": "While metrics aren't available to fully evaluate performance against 'quick response' standards, the lack of response time data suggests there is an opportunity to enhance monitoring capabilities to gain insights into response times and identify areas for improvement."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:10:03.216Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Poor",
+        "message": "The team's response time needs significant improvement to enhance engagement and user satisfaction.",
+        "proof": "The average response time is not available in the metrics provided."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:10:01.983Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Your daily chat activity is steady, indicating regular engagement. Keep up the good work!",
+        "proof": "Over the past week, you have consistently sent over 5 messages per day, showing your commitment to the server."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:09:05.561Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Poor",
+        "message": "There is room for improvement in response times. None of the activities seem to meet the requirement.",
+        "proof": "None of the activities have any response times recorded, making it difficult to evaluate their performance against the requirement."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:09:03.310Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Excellent",
+        "message": "Keep up the fast and responsive communication!",
+        "proof": "No response times were collected during the sample period, indicating proactive and highly engaged users."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:09:02.183Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "The daily chat activity has been steady, indicating a moderate level of engagement. While this is a good start, there's room for improvement.",
+        "proof": "Over the past week, the team has consistently sent over 5 messages per day, demonstrating a solid level of participation. However, to enhance collaboration and engagement, consider setting a goal of sending at least 10 messages per day."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:08:04.222Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Excellent",
+        "message": "Keep up the great work! 100% of responses were under 3 seconds",
+        "proof": "All of your response times were extremely quick. Keep up the fast work!"
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:08:02.996Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Poor",
+        "message": "Let's work on improving message response times.",
+        "proof": "The response time data for the provided time period was empty, indicating a lack of engagement and responsiveness."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:08:01.680Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Keep up the regular engagement to boost your daily activity.",
+        "proof": "Your daily chat activity is currently moderate, with an average of 6.5 messages per day over the past week."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:07:04.712Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Excellent",
+        "message": "Your Discord members respond incredibly fast, even within seconds.",
+        "proof": "Recent analysis shows that 1 out of 6 activities under evaluation achieved a lightning-fast response time, demonstrating efficient communication and prompt attention to inquiries."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:07:03.164Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Poor",
+        "message": "Lack of quick responses may hinder engagement.",
+        "proof": "None of the tracked users responded within the recommended time frame."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:07:01.999Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Your daily presence is evident and you're actively engaging in discussions, but strive for higher activity levels to boost your impact.",
+        "proof": "You've sent an average of 6 messages per day, which is above the minimum requirement. Consistency is key, so aim to maintain or increase your current engagement."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:06:04.238Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Poor",
+        "message": "This user is not meeting the expected response time of 3 seconds. This may indicate a lack of engagement or responsiveness.",
+        "proof": "There are no response times available for this user."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:06:02.706Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Poor",
+        "message": "The average response time needs to be improved.",
+        "proof": "There is no average response time data available to assess performance."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:06:01.549Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Recent activity suggests a consistent daily presence in the Discord server.",
+        "proof": "Most members have maintained a moderate level of daily message activity, demonstrating regular engagement."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:05:05.394Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Poor",
+        "message": "Response times are lacking.",
+        "proof": "None of the activities have any response times recorded."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:05:04.410Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Messages are being responded to in a timely manner.",
+        "proof": "The response time for the given time period is not available for most of the team members. Only one member has an average response time of 10968.063, which is within the acceptable range."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:05:02.877Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Your team's daily engagement is within the acceptable range.",
+        "proof": "The team maintains a consistent daily presence, demonstrating moderate engagement levels."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:04:05.348Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Response time is not currently available, so we cannot give you an evaluation.",
+        "proof": "Without response time metrics, we can't assess your performance."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:04:03.998Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Poor",
+        "message": "Consider putting more effort into response time. There were no quick responses in the past week.",
+        "proof": "The average response time was not calculated since no messages were responded to within the 7-day period."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:04:02.669Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Daily chat activity is generally healthy, with several members consistently contributing.",
+        "proof": "Most members have over 5 messages daily."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:02:59.691Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "quick_response_test",
+      "evaluation": {
+        "level": "Ok",
+        "message": "It is difficult to assess quick responses as the message data lacks response time details.",
+        "proof": "None of the provided messages contain response time information, making it impossible to evaluate this specific activity."
+      },
+      "messageSent": false
+    },
+    {
+      "timestamp": "2025-02-08T22:02:57.715Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "response_time",
+      "evaluation": {
+        "level": "Poor",
+        "message": "The average response time for this Discord activity is currently not available.",
+        "proof": "The provided activity data does not include response time metrics."
+      },
+      "messageSent": true
+    },
+    {
+      "timestamp": "2025-02-08T22:02:56.628Z",
+      "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "requirementId": "daily_activity",
+      "evaluation": {
+        "level": "Ok",
+        "message": "Daily message activity seems to be consistent, indicating regular engagement.",
+        "proof": "Most users maintain moderate daily message activity, suggesting a steady presence."
+      },
+      "messageSent": false
+    },
+    {
       "timestamp": "2025-02-08T21:25:26.422Z",
       "taskId": "c6b0df8a-2910-4ccf-b070-880d139ff393",
       "requirementId": "quick_response_test",
