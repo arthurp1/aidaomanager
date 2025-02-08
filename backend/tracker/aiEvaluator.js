@@ -54,7 +54,7 @@ class AIEvaluator {
         Provide an evaluation in the following JSON format:
         {
             "level": "Excellent/Ok/Poor",
-            "message": "An encouraging message that doesn't reveal metrics",
+            "message": "An encouraging one-line private message with exactly one emoji, that doesn't reveal metrics",
             "proof": "Brief justification without exposing raw data"
         }
         
@@ -63,7 +63,9 @@ class AIEvaluator {
         - Be encouraging and constructive
         - Suggest specific improvements for "Poor" ratings
         - Celebrate achievements for "Excellent" ratings
-        - Keep messages concise and actionable
+        - Keep the message concise and actionable as a private one-line notification
+        - Include exactly one emoji to add a friendly tone
+        - Ensure the message sounds natural, like a kind manager giving a nudge to be more active
         `;
     }
 

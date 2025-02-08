@@ -63,16 +63,7 @@ class NotificationManager {
         const lastMessage = history[userId]?.[task.id]?.[requirement.id];
         const now = new Date();
 
-        // Check if we can send a channel message (excellence announcement)
-        if (this.canSendMessage(lastMessage?.channelMessage, now)) {
-            const channelId = await this.getGeneralChannel();
-            if (channelId) {
-                const message = this.formatExcellenceMessage(evaluation, task, requirement);
-                await sendChannelMessage(channelId, message);
-                
-                this.updateMessageHistory(history, userId, task.id, requirement.id, 'channelMessage', now);
-            }
-        }
+        // Channel messaging disabled as per configuration
 
         // Also send a direct message of congratulations
         if (this.canSendMessage(lastMessage?.directMessage, now)) {
@@ -109,8 +100,7 @@ class NotificationManager {
     }
 
     formatDirectMessage(evaluation, task, requirement) {
-        const emoji = requirement.emoji || '📊';
-        return `${emoji} ${task.title} - ${requirement.title}\n\n${evaluation.message}`;
+        return evaluation.message;
     }
 
     updateMessageHistory(history, userId, taskId, requirementId, messageType, timestamp) {
