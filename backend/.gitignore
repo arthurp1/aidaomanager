@@ -1,3 +1,4 @@
 node_modules/
 .env
-data/
+data/discord.json
+data/discord_filtered.json
