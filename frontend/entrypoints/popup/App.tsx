@@ -37,7 +37,7 @@ function App() {
   const [isHoveringTaskList, setIsHoveringTaskList] = useState(false);
   const [isHoveringRoles, setIsHoveringRoles] = useState(false);
   const appRef = useRef<HTMLDivElement>(null);
-  const [currentView, setCurrentView] = useState<'tasks' | 'chat' | 'profile' | 'settings'>('tasks');
+  const [currentView, setCurrentView] = useState<'tasks' | 'profile' | 'settings' | 'ai'>('tasks');
   const [isDark, setIsDark] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
@@ -642,62 +642,87 @@ function App() {
 
   // Update URL effect
   useEffect(() => {
-    if (!isChromeExtension || !chrome?.storage?.local) return;
+    if (!isChromeExtension || !chrome?.runtime) {
+      console.log('Chrome extension environment not available:', { isChromeExtension, hasRuntime: !!chrome?.runtime });
+      return;
+    }
 
     const getCurrentUrl = async () => {
       try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const currentTab = tabs[0];
-        if (currentTab?.url) {
-          console.log('Current URL:', currentTab.url);
-          setCurrentUrl(currentTab.url);
-
-          // Load stored state first
-          const storedData = await chrome.storage.local.get([
-            'activeTask',
-            'elapsedTime'
-          ]);
-
-          // Check if the current URL matches any task's tools
-          const matchingTask = tasks.find(task => 
-            task.tools.some(tool => {
-              try {
-                if (!currentTab.url) return false;
-                const currentHostname = new URL(currentTab.url).hostname;
-                const toolHostname = tool.toLowerCase();
-                return currentHostname.includes(toolHostname);
-              } catch {
-                return false;
-              }
-            })
-          );
-
-          // If we have a stored active task, restore it
-          if (storedData.activeTask) {
-            const storedTask = {
-              ...storedData.activeTask,
-              createdAt: new Date(storedData.activeTask.createdAt)
-            };
-            setActiveTask(storedTask);
-            setElapsedTime(storedData.elapsedTime || 0);
+        console.log('Requesting URL from background script...');
+        // Get URL from background script
+        chrome.runtime.sendMessage({ type: 'getCurrentUrl' }, async (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Error getting URL from background:', chrome.runtime.lastError);
+            return;
           }
-          // Otherwise, if we found a matching task and no task is currently active
-          else if (matchingTask && (!activeTask || activeTask.id !== matchingTask.id)) {
-            console.log('Auto-activating task:', matchingTask.title);
-            setActiveTask(matchingTask);
-            setElapsedTime(0);
+
+          console.log('Received response from background:', response);
+
+          if (response?.currentUrl) {
+            console.log('Setting current URL in popup:', response.currentUrl);
+            setCurrentUrl(response.currentUrl);
+
+            // Load stored state
+            const storedData = await chrome.storage.local.get([
+              'activeTask',
+              'elapsedTime'
+            ]);
+
+            console.log('Loaded stored state:', storedData);
+
+            // Check if the current URL matches any task's tools
+            const matchingTask = tasks.find(task => 
+              task.tools.some(tool => {
+                try {
+                  const currentHostname = new URL(response.currentUrl).hostname;
+                  const toolHostname = tool.toLowerCase();
+                  const matches = currentHostname.includes(toolHostname);
+                  console.log('URL matching:', { currentHostname, toolHostname, matches });
+                  return matches;
+                } catch (error) {
+                  console.error('Error matching URL:', error);
+                  return false;
+                }
+              })
+            );
+
+            if (matchingTask) {
+              console.log('Found matching task:', matchingTask);
+            }
+
+            // If we have a stored active task, restore it
+            if (storedData.activeTask) {
+              const storedTask = {
+                ...storedData.activeTask,
+                createdAt: new Date(storedData.activeTask.createdAt)
+              };
+              setActiveTask(storedTask);
+              setElapsedTime(storedData.elapsedTime || 0);
+              console.log('Restored active task:', storedTask);
+            }
+            // Otherwise, if we found a matching task and no task is currently active
+            else if (matchingTask && (!activeTask || activeTask.id !== matchingTask.id)) {
+              console.log('Auto-activating task:', matchingTask.title);
+              setActiveTask(matchingTask);
+              setElapsedTime(0);
+            }
+          } else {
+            console.log('No URL received from background');
           }
-        }
+        });
       } catch (error) {
-        console.error('Error getting current URL:', error);
+        console.error('Error in getCurrentUrl:', error);
       }
     };
 
+    console.log('Setting up URL polling');
     getCurrentUrl();
     // Check URL periodically for changes
     const intervalId = setInterval(getCurrentUrl, 1000);
 
     return () => {
+      console.log('Cleaning up URL polling');
       clearInterval(intervalId);
     };
   }, [tasks, activeTask, elapsedTime]);
@@ -892,288 +917,339 @@ function App() {
       ref={appRef}
       className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col"
     >
-      <div className="flex-1 flex flex-col">
-        {/* Active Task Section */}
-        {activeTask && (
-          <div className="bg-white dark:bg-dark-surface border-b dark:border-gray-700">
-            <div className="px-3 py-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveTask(null)}
-                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                  >
-                    ■
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-medium">{activeTask.title}</h2>
-                    <div className="flex items-center gap-1">
-                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                        Manual tracking
-                      </span>
-                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                        {formatTime(elapsedTime)}
-                      </span>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Tasks View */}
+        {currentView === 'tasks' && (
+          <>
+            {/* Active Task Section */}
+            {activeTask && (
+              <div className="bg-white dark:bg-dark-surface border-b dark:border-gray-700">
+                <div className="px-3 py-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setActiveTask(null)}
+                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                      >
+                        ■
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <h2 className="font-medium">{activeTask.title}</h2>
+                        <div className="flex items-center gap-1">
+                          <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                            Manual tracking
+                          </span>
+                          <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+                            {formatTime(elapsedTime)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {formatTrackedTime(activeTask.trackedTime)}/{activeTask.estimatedTime}h
+                    </span>
+                  </div>
+                  <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
+                    {activeTask.tools.map(tool => (
+                      <a
+                        key={tool}
+                        href={`https://${tool}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-gray-600 dark:hover:text-gray-300"
+                      >
+                        {tool}
+                      </a>
+                    ))}
+                  </div>
+                  {/* Subtasks for active task */}
+                  <TaskTable
+                    tasks={subtasks.filter(subtask => subtask.taskId === activeTask.id)}
+                    onCreateTask={(newSubtask) => handleCreateSubtask({ 
+                      ...newSubtask, 
+                      roleId: activeTask.roleId,
+                      taskId: activeTask.id 
+                    })}
+                    onToggleComplete={handleToggleSubtaskComplete}
+                    onDeleteTask={handleDeleteSubtask}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Role Selection */}
+            <div 
+              className="px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-x-auto relative bg-white dark:bg-dark-surface"
+              onMouseEnter={() => setIsHoveringRoles(true)}
+              onMouseLeave={() => setIsHoveringRoles(false)}
+            >
+              {roles.map(role => (
+                <button
+                  key={role.id}
+                  onClick={() => setSelectedRole(role.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    handleEditRole(role);
+                  }}
+                  className={`px-3 py-1 text-sm rounded whitespace-nowrap ${
+                    selectedRole === role.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 dark:bg-dark-surface hover:bg-gray-300 dark:hover:bg-dark-hover'
+                  }`}
+                >
+                  {role.name}
+                </button>
+              ))}
+              {isHoveringRoles && (
+                <button
+                  onClick={() => {
+                    setEditingRole(null);
+                    setNewRoleName('');
+                    setIsRoleModalOpen(true);
+                  }}
+                  className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 flex items-center gap-1"
+                >
+                  <span className="text-lg leading-none">+</span>
+                  <span>Role</span>
+                </button>
+              )}
+            </div>
+            
+            {/* Task Management Section */}
+            <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+              {selectedRole ? (
+                <div className="flex flex-col">
+                  {/* Tasks and Subtasks List */}
+                  <div 
+                    className="flex-1"
+                    onMouseEnter={() => setIsHoveringTaskList(true)}
+                    onMouseLeave={() => setIsHoveringTaskList(false)}
+                  >
+                    {getFilteredTasks(selectedRole).map(task => (
+                      <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50 last:border-b-0">
+                        {/* Task Header */}
+                        <div 
+                          className="group flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 cursor-pointer"
+                          onClick={() => toggleTaskCollapse(task.id)}
+                        >
+                          <button 
+                            className="opacity-0 group-hover:opacity-100 mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
+                            onClick={(e) => handlePlayTask(task, e)}
+                          >
+                            {activeTask?.id === task.id ? '■' : '▶'}
+                          </button>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">{task.title}</span>
+                              <span className="text-sm text-gray-500 dark:text-gray-400">
+                                {formatTrackedTime(task.trackedTime)}/{task.estimatedTime}h
+                              </span>
+                            </div>
+                            <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500">
+                              {task.tools.map(tool => (
+                                <a
+                                  key={tool}
+                                  href={`https://${tool}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="hover:text-gray-600 dark:hover:text-gray-300"
+                                >
+                                  {tool}
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Tabs and Content */}
+                        {!task.isCollapsed && (
+                          <div>
+                            {/* Tabs - removed border-t and adjusted text size */}
+                            <div className="flex">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTabChange(task.id, 'subtasks');
+                                }}
+                                className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                                  (!taskTabs[task.id] || taskTabs[task.id] === 'subtasks')
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                              >
+                                Subtasks
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTabChange(task.id, 'requirements');
+                                }}
+                                className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
+                                  taskTabs[task.id] === 'requirements'
+                                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                                }`}
+                              >
+                                Requirements
+                              </button>
+                            </div>
+
+                            {/* Tab Content */}
+                            <div onClick={(e) => e.stopPropagation()}>
+                              {(!taskTabs[task.id] || taskTabs[task.id] === 'subtasks') ? (
+                                <TaskTable
+                                  tasks={subtasks.filter(subtask => subtask.taskId === task.id)}
+                                  onCreateTask={(newSubtask) => handleCreateSubtask({ 
+                                    ...newSubtask, 
+                                    roleId: selectedRole,
+                                    taskId: task.id 
+                                  })}
+                                  onToggleComplete={handleToggleSubtaskComplete}
+                                  onDeleteTask={handleDeleteSubtask}
+                                />
+                              ) : (
+                                <div className="p-3">
+                                  {task.requirements.length > 0 ? (
+                                    <div className="space-y-2">
+                                      {requirements
+                                        .filter(req => task.requirements.includes(req.id))
+                                        .map(req => (
+                                          <div key={req.id} className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded">
+                                            <span className="text-lg">{req.emoji}</span>
+                                            <div>
+                                              <div className="text-sm font-medium dark:text-gray-200">{req.title}</div>
+                                              <div className="text-xs text-gray-600 dark:text-gray-400">
+                                                Measured by: {req.measure}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        ))
+                                      }
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                                      No requirements set for this task
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Propose New Task Button */}
+                    {(isHoveringTaskList || getFilteredTasks(selectedRole).length === 0) && !showTaskForm && (
+                      <button
+                        onClick={() => setShowTaskForm(true)}
+                        className="w-full px-3 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 flex items-center justify-center gap-2 group transition-colors"
+                      >
+                        <span className="text-lg leading-none group-hover:text-blue-500">+</span>
+                        <span className="group-hover:text-blue-500">Add New Task</span>
+                      </button>
+                    )}
+
+                    {/* Task Creation Form */}
+                    {showTaskForm && (
+                      <TaskForm
+                        onCreateTask={handleCreateTask}
+                        onCancel={() => setShowTaskForm(false)}
+                        toolCategories={toolCategories}
+                      />
+                    )}
                   </div>
                 </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {formatTrackedTime(activeTask.trackedTime)}/{activeTask.estimatedTime}h
-                </span>
+              ) : (
+                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                  Select or create a role to manage tasks
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* AI Assistant View */}
+        {currentView === 'ai' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-hidden">
+            <AIAssistant />
+          </div>
+        )}
+
+        {/* Profile View */}
+        {currentView === 'profile' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+            <div className="p-4">
+              <div className="max-w-lg mx-auto">
+                <h2 className="text-lg font-medium mb-4">User Profile</h2>
+                
+                {/* Export Data Section */}
+                <div className="mb-6 p-4 border dark:border-gray-700 rounded-lg">
+                  <h3 className="text-sm font-medium mb-2">Data Management</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    Export your tasks, roles, and tracking data as a JSON file
+                  </p>
+                  <button
+                    onClick={handleExportData}
+                    className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Export Data
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
+            </div>
+          </div>
+        )}
+
+        {/* Settings View */}
+        {currentView === 'settings' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+            <div className="p-4">
+              <h2 className="text-lg font-medium mb-4">Settings</h2>
+              {/* Add settings content here */}
+            </div>
+          </div>
+        )}
+
+        {/* URL Bar */}
+        <div className="border-t dark:border-gray-700 bg-white dark:bg-dark-surface">
+          {activeTask && activeTask.tools.length > 0 && (
+            <div className="px-3 py-1 border-b dark:border-gray-700">
+              <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 overflow-x-auto">
                 {activeTask.tools.map(tool => (
                   <a
                     key={tool}
                     href={`https://${tool}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hover:text-gray-600 dark:hover:text-gray-300"
+                    className="hover:text-gray-600 dark:hover:text-gray-300 whitespace-nowrap"
                   >
                     {tool}
                   </a>
                 ))}
               </div>
-              {/* Subtasks for active task */}
-              <TaskTable
-                tasks={subtasks.filter(subtask => subtask.taskId === activeTask.id)}
-                onCreateTask={(newSubtask) => handleCreateSubtask({ 
-                  ...newSubtask, 
-                  roleId: activeTask.roleId,
-                  taskId: activeTask.id 
-                })}
-                onToggleComplete={handleToggleSubtaskComplete}
-                onDeleteTask={handleDeleteSubtask}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Role Selection with Everyone role */}
-        <div 
-          className="px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-x-auto relative"
-          onMouseEnter={() => setIsHoveringRoles(true)}
-          onMouseLeave={() => setIsHoveringRoles(false)}
-        >
-          {roles.map(role => (
-            <button
-              key={role.id}
-              onClick={() => setSelectedRole(role.id)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                handleEditRole(role);
-              }}
-              className={`px-3 py-1 text-sm rounded whitespace-nowrap ${
-                selectedRole === role.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-dark-surface hover:bg-gray-300 dark:hover:bg-dark-hover'
-              }`}
-            >
-              {role.name}
-            </button>
-          ))}
-          {isHoveringRoles && (
-            <button
-              onClick={() => {
-                setEditingRole(null);
-                setNewRoleName('');
-                setIsRoleModalOpen(true);
-              }}
-              className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 flex items-center gap-1"
-            >
-              <span className="text-lg leading-none">+</span>
-              <span>Role</span>
-            </button>
-          )}
-        </div>
-        
-        {/* Task Management Section */}
-        <div className="flex-1 bg-white dark:bg-dark-surface">
-          {selectedRole ? (
-            <div className="flex flex-col">
-              {/* Tasks and Subtasks List */}
-              <div 
-                className="flex-1"
-                onMouseEnter={() => setIsHoveringTaskList(true)}
-                onMouseLeave={() => setIsHoveringTaskList(false)}
-              >
-                {getFilteredTasks(selectedRole).map(task => (
-                  <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50 last:border-b-0">
-                    {/* Task Header */}
-                    <div 
-                      className="group flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 cursor-pointer"
-                      onClick={() => toggleTaskCollapse(task.id)}
-                    >
-                      <button 
-                        className="opacity-0 group-hover:opacity-100 mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
-                        onClick={(e) => handlePlayTask(task, e)}
-                      >
-                        {activeTask?.id === task.id ? '■' : '▶'}
-                      </button>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{task.title}</span>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {formatTrackedTime(task.trackedTime)}/{task.estimatedTime}h
-                          </span>
-                        </div>
-                        <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500">
-                          {task.tools.map(tool => (
-                            <a
-                              key={tool}
-                              href={`https://${tool}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:text-gray-600 dark:hover:text-gray-300"
-                            >
-                              {tool}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Tabs and Content */}
-                    {!task.isCollapsed && (
-                      <div>
-                        {/* Tabs - removed border-t and adjusted text size */}
-                        <div className="flex">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTabChange(task.id, 'subtasks');
-                            }}
-                            className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                              (!taskTabs[task.id] || taskTabs[task.id] === 'subtasks')
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                            }`}
-                          >
-                            Subtasks
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTabChange(task.id, 'requirements');
-                            }}
-                            className={`px-3 py-1.5 text-xs font-medium border-b-2 -mb-px ${
-                              taskTabs[task.id] === 'requirements'
-                                ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-                            }`}
-                          >
-                            Requirements
-                          </button>
-                        </div>
-
-                        {/* Tab Content */}
-                        <div onClick={(e) => e.stopPropagation()}>
-                          {(!taskTabs[task.id] || taskTabs[task.id] === 'subtasks') ? (
-                            <TaskTable
-                              tasks={subtasks.filter(subtask => subtask.taskId === task.id)}
-                              onCreateTask={(newSubtask) => handleCreateSubtask({ 
-                                ...newSubtask, 
-                                roleId: selectedRole,
-                                taskId: task.id 
-                              })}
-                              onToggleComplete={handleToggleSubtaskComplete}
-                              onDeleteTask={handleDeleteSubtask}
-                            />
-                          ) : (
-                            <div className="p-3">
-                              {task.requirements.length > 0 ? (
-                                <div className="space-y-2">
-                                  {requirements
-                                    .filter(req => task.requirements.includes(req.id))
-                                    .map(req => (
-                                      <div key={req.id} className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded">
-                                        <span className="text-lg">{req.emoji}</span>
-                                        <div>
-                                          <div className="text-sm font-medium dark:text-gray-200">{req.title}</div>
-                                          <div className="text-xs text-gray-600 dark:text-gray-400">
-                                            Measured by: {req.measure}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))
-                                  }
-                                </div>
-                              ) : (
-                                <div className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
-                                  No requirements set for this task
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Propose New Task Button */}
-                {(isHoveringTaskList || getFilteredTasks(selectedRole).length === 0) && !showTaskForm && (
-                  <button
-                    onClick={() => setShowTaskForm(true)}
-                    className="w-full px-3 py-2 text-sm text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 flex items-center justify-center gap-2 group transition-colors"
-                  >
-                    <span className="text-lg leading-none group-hover:text-blue-500">+</span>
-                    <span className="group-hover:text-blue-500">Add New Task</span>
-                  </button>
-                )}
-
-                {/* Task Creation Form */}
-                {showTaskForm && (
-                  <TaskForm
-                    onCreateTask={handleCreateTask}
-                    onCancel={() => setShowTaskForm(false)}
-                    toolCategories={toolCategories}
-                  />
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-              Select or create a role to manage tasks
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Active Task Tools URLs and Current URL */}
-      <div className="border-t dark:border-gray-700 bg-white dark:bg-dark-surface">
-        {activeTask && activeTask.tools.length > 0 && (
-          <div className="px-3 py-1 border-b dark:border-gray-700">
-            <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 overflow-x-auto">
-              {activeTask.tools.map(tool => (
-                <a
-                  key={tool}
-                  href={`https://${tool}`}
-                  target="_blank"
+          <div className="px-3 py-1">
+            <div className="text-xs text-gray-400 dark:text-gray-500 truncate" style={{ minHeight: '1.25rem' }}>
+              {currentUrl ? (
+                <a 
+                  href={currentUrl} 
+                  target="_blank" 
                   rel="noopener noreferrer"
-                  className="hover:text-gray-600 dark:hover:text-gray-300 whitespace-nowrap"
+                  className="hover:text-gray-600 dark:hover:text-gray-300"
                 >
-                  {tool}
+                  {currentUrl}
                 </a>
-              ))}
+              ) : (
+                <span>No active tab</span>
+              )}
             </div>
-          </div>
-        )}
-        <div className="px-3 py-1">
-          <div className="text-xs text-gray-400 dark:text-gray-500 truncate" style={{ minHeight: '1.25rem' }}>
-            {currentUrl ? (
-              <a 
-                href={currentUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                {currentUrl}
-              </a>
-            ) : (
-              <span>No active tab</span>
-            )}
           </div>
         </div>
       </div>
@@ -1190,18 +1266,11 @@ function App() {
           <ClipboardDocumentListIcon className="w-5 h-5" />
         </button>
         <button
-          onClick={() => setShowAIAssistant(true)}
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400"
-          title="AI Assistant"
-        >
-          <SparklesIcon className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => setCurrentView('chat')}
+          onClick={() => setCurrentView('ai')}
           className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors ${
-            currentView === 'chat' ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'
+            currentView === 'ai' ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'
           }`}
-          title="Chat"
+          title="AI Assistant"
         >
           <ChatBubbleLeftIcon className="w-5 h-5" />
         </button>
@@ -1222,17 +1291,6 @@ function App() {
           title="Settings"
         >
           <Cog6ToothIcon className="w-5 h-5" />
-        </button>
-        <button
-          onClick={toggleTheme}
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-gray-400 dark:text-gray-500"
-          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? (
-            <SunIcon className="w-5 h-5" />
-          ) : (
-            <MoonIcon className="w-5 h-5" />
-          )}
         </button>
       </div>
 
@@ -1326,36 +1384,6 @@ function App() {
                 className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
               >
                 {editingRole ? 'Update' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* AI Assistant Modal */}
-      {showAIAssistant && (
-        <AIAssistant onClose={() => setShowAIAssistant(false)} />
-      )}
-
-      {currentView === 'profile' && (
-        <div className="flex-1 bg-white dark:bg-dark-surface p-4">
-          <div className="max-w-lg mx-auto">
-            <h2 className="text-lg font-medium mb-4">User Profile</h2>
-            
-            {/* Export Data Section */}
-            <div className="mb-6 p-4 border dark:border-gray-700 rounded-lg">
-              <h3 className="text-sm font-medium mb-2">Data Management</h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                Export your tasks, roles, and tracking data as a JSON file
-              </p>
-              <button
-                onClick={handleExportData}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Export Data
               </button>
             </div>
           </div>
