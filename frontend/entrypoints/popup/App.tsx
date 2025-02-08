@@ -14,6 +14,40 @@ import {
 import './App.css';
 import { db } from './db';
 import { Task, SubTask, Role, Requirement } from './types';
+import mockWalletData from './data/wallet.json';
+import { createCoinbaseWalletSDK } from '@coinbase/wallet-sdk';
+
+// Add new interfaces after existing ones
+interface Organization {
+  name: string;
+  role: string;
+  id: string;
+}
+
+interface SocialConnections {
+  email?: string;
+  discord?: string;
+  telegram?: string;
+  github?: string;
+}
+
+interface EthereumProvider {
+  request(args: { method: string; params?: any[] }): Promise<any>;
+  on(eventName: string, handler: (...args: any[]) => void): void;
+  removeListener(eventName: string, handler: (...args: any[]) => void): void;
+}
+
+interface WalletSDK {
+  getProvider(): EthereumProvider;
+}
+
+interface WalletInfo {
+  address: string;
+  balance: string;
+  organizations: Organization[];
+  socials: SocialConnections;
+  smartWallet?: WalletSDK;
+}
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
 
@@ -45,6 +79,14 @@ function App() {
   const [currentUrl, setCurrentUrl] = useState<string>('');
   const [isDbInitialized, setIsDbInitialized] = useState(false);
   const [taskTabs, setTaskTabs] = useState<Record<string, 'subtasks' | 'requirements'>>({});
+  const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
+  const [isCreateOrgModalOpen, setIsCreateOrgModalOpen] = useState(false);
+  const [newOrgName, setNewOrgName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [editingSocials, setEditingSocials] = useState(false);
+  const [socialInputs, setSocialInputs] = useState<SocialConnections>({});
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [smartWalletError, setSmartWalletError] = useState<string | null>(null);
 
   // Initialize database and load data
   useEffect(() => {
@@ -912,6 +954,151 @@ function App() {
     setTaskTabs(prev => ({ ...prev, [taskId]: tab }));
   };
 
+  const handleDevTest = () => {
+    setWalletInfo(mockWalletData.mockWallets[0]);
+  };
+
+  const handleCreateOrg = () => {
+    if (!walletInfo || !newOrgName.trim()) return;
+    
+    const newOrg: Organization = {
+      name: newOrgName.trim(),
+      role: 'Admin',
+      id: `${newOrgName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`
+    };
+
+    setWalletInfo(prev => prev ? {
+      ...prev,
+      organizations: [...prev.organizations, newOrg]
+    } : null);
+    
+    setNewOrgName('');
+    setIsCreateOrgModalOpen(false);
+  };
+
+  const handleJoinOrg = () => {
+    if (!walletInfo || !inviteCode.trim()) return;
+    // In a real app, this would validate the invite code
+    setInviteCode('');
+  };
+
+  const handleLogout = async () => {
+    try {
+      if (walletInfo?.smartWallet) {
+        // Just clear the wallet info from state
+        // The provider will automatically disconnect when the user closes the session
+        setWalletInfo(null);
+        setSmartWalletError(null);
+        
+        // Clear any stored provider state
+        localStorage.removeItem('walletconnect');
+        localStorage.removeItem('WALLET_CONNECT_V2_INITIALIZED');
+      }
+    } catch (error) {
+      console.error('Error logging out:', error);
+      setSmartWalletError(error instanceof Error ? error.message : 'Failed to logout');
+    }
+  };
+
+  const handleLeaveOrg = (orgId: string) => {
+    if (!walletInfo) return;
+    setWalletInfo(prev => prev ? {
+      ...prev,
+      organizations: prev.organizations.filter(org => org.id !== orgId)
+    } : null);
+  };
+
+  const handleSaveSocials = () => {
+    if (!walletInfo) return;
+    setWalletInfo(prev => prev ? {
+      ...prev,
+      socials: { ...prev.socials, ...socialInputs }
+    } : null);
+    setEditingSocials(false);
+  };
+
+  // Initialize Smart Wallet SDK
+  useEffect(() => {
+    const initializeSmartWallet = async () => {
+      try {
+        const smartWallet = createCoinbaseWalletSDK({
+          appName: 'AIDAO Manager'
+        });
+        
+        // Get the provider
+        const provider = smartWallet.getProvider();
+        
+        // Check if we have a connected account
+        try {
+          const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
+          if (accounts && accounts.length > 0) {
+            const address = accounts[0];
+            const balanceHex = await provider.request({ 
+              method: 'eth_getBalance',
+              params: [address, 'latest']
+            }) as string;
+            const balance = parseInt(balanceHex, 16) / 1e18; // Convert from wei to ETH
+            
+            setWalletInfo({
+              address,
+              balance: `${balance.toFixed(4)} ETH`,
+              organizations: [],
+              socials: {},
+              smartWallet
+            });
+          }
+        } catch (error) {
+          console.error('Error checking wallet connection:', error);
+        }
+      } catch (error) {
+        console.error('Error initializing smart wallet:', error);
+        setSmartWalletError(error instanceof Error ? error.message : 'Failed to initialize smart wallet');
+      }
+    };
+
+    initializeSmartWallet();
+  }, []);
+
+  const handleConnectWallet = async () => {
+    setIsConnecting(true);
+    setSmartWalletError(null);
+    
+    try {
+      const smartWallet = createCoinbaseWalletSDK({
+        appName: 'AIDAO Manager'
+      });
+      
+      const provider = smartWallet.getProvider();
+      
+      // Request account access
+      const accounts = await provider.request({ method: 'eth_requestAccounts' }) as string[];
+      const address = accounts[0];
+      
+      // Get balance
+      const balanceHex = await provider.request({ 
+        method: 'eth_getBalance',
+        params: [address, 'latest']
+      }) as string;
+      const balance = parseInt(balanceHex, 16) / 1e18; // Convert from wei to ETH
+      
+      setWalletInfo({
+        address,
+        balance: `${balance.toFixed(4)} ETH`,
+        organizations: [],
+        socials: {},
+        smartWallet
+      });
+      
+      // Ensure we stay on or return to the profile view after successful connection
+      setCurrentView('profile');
+    } catch (error) {
+      console.error('Error connecting smart wallet:', error);
+      setSmartWalletError(error instanceof Error ? error.message : 'Failed to connect smart wallet');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   return (
     <div 
       ref={appRef}
@@ -1181,12 +1368,250 @@ function App() {
         {/* Profile View */}
         {currentView === 'profile' && (
           <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+            {/* Dev Test Button */}
+            <button
+              onClick={handleDevTest}
+              className="absolute top-2 left-2 px-2 py-1 text-xs bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              Dev Test
+            </button>
+
             <div className="p-4">
-              <div className="max-w-lg mx-auto">
-                <h2 className="text-lg font-medium mb-4">User Profile</h2>
+              <div className="max-w-lg mx-auto space-y-4">
+                {/* Login Section */}
+                {!walletInfo ? (
+                  <div className="p-4 border dark:border-gray-700 rounded-lg">
+                    <h2 className="text-lg font-medium mb-4">Login</h2>
+                    {smartWalletError && (
+                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded text-sm">
+                        {smartWalletError}
+                      </div>
+                    )}
+                    <button
+                      onClick={handleConnectWallet}
+                      disabled={isConnecting}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isConnecting ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Connecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                          Connect Smart Wallet
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Wallet Info Section */}
+                    <div className="p-4 border dark:border-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-medium">Wallet</h2>
+                        <button
+                          onClick={handleLogout}
+                          className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-500 dark:text-gray-400">Address:</span>
+                          <span className="text-sm font-mono">{walletInfo.address}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-500 dark:text-gray-400">Balance:</span>
+                          <span className="text-sm font-medium">{walletInfo.balance}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Social Connections */}
+                    <div className="p-4 border dark:border-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-medium">Connected Accounts</h2>
+                        <button
+                          onClick={() => {
+                            setEditingSocials(!editingSocials);
+                            setSocialInputs(walletInfo.socials || {});
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {editingSocials ? 'Cancel' : 'Edit'}
+                        </button>
+                      </div>
+                      
+                      {editingSocials ? (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Email</label>
+                            <input
+                              type="email"
+                              value={socialInputs.email || ''}
+                              onChange={(e) => setSocialInputs(prev => ({ ...prev, email: e.target.value }))}
+                              placeholder="your@email.com"
+                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Discord</label>
+                            <input
+                              type="text"
+                              value={socialInputs.discord || ''}
+                              onChange={(e) => setSocialInputs(prev => ({ ...prev, discord: e.target.value }))}
+                              placeholder="username#0000"
+                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Telegram</label>
+                            <input
+                              type="text"
+                              value={socialInputs.telegram || ''}
+                              onChange={(e) => setSocialInputs(prev => ({ ...prev, telegram: e.target.value }))}
+                              placeholder="@username"
+                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">GitHub</label>
+                            <input
+                              type="text"
+                              value={socialInputs.github || ''}
+                              onChange={(e) => setSocialInputs(prev => ({ ...prev, github: e.target.value }))}
+                              placeholder="username"
+                              className="w-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <button
+                            onClick={handleSaveSocials}
+                            className="w-full mt-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {Object.entries(walletInfo.socials || {}).map(([platform, value]) => value && (
+                            <div key={platform} className="flex items-center justify-between">
+                              <span className="text-sm capitalize text-gray-500 dark:text-gray-400">{platform}:</span>
+                              <span className="text-sm">{value}</span>
+                            </div>
+                          ))}
+                          {(!walletInfo.socials || Object.keys(walletInfo.socials).length === 0) && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                              No accounts connected
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Organizations Section */}
+                    <div className="p-4 border dark:border-gray-700 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-lg font-medium">Organizations</h2>
+                        <button
+                          onClick={() => setIsCreateOrgModalOpen(true)}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Create
+                        </button>
+                      </div>
+
+                      {/* Organizations List */}
+                      <div className="space-y-2">
+                        {walletInfo.organizations.map(org => (
+                          <div
+                            key={org.id}
+                            className="group flex items-center justify-between p-2 bg-gray-50 dark:bg-dark-hover rounded hover:bg-gray-100 dark:hover:bg-dark-hover/70"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div>
+                                <div className="font-medium">{org.name}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">{org.role}</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {org.role === 'Admin' && (
+                                <button
+                                  className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                  Roles
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleLeaveOrg(org.id)}
+                                className="px-2 py-1 text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                              >
+                                Leave
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Join Organization */}
+                      <div className="mt-3 pt-3 border-t dark:border-gray-700">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value)}
+                            placeholder="Enter invite code"
+                            className="flex-1 px-3 py-1.5 text-sm bg-gray-50 dark:bg-dark-hover border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500"
+                          />
+                          <button
+                            onClick={handleJoinOrg}
+                            disabled={!inviteCode.trim()}
+                            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Join
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Settings View */}
+        {currentView === 'settings' && (
+          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
+            <div className="p-4">
+              <div className="max-w-lg mx-auto space-y-6">
+                <h2 className="text-lg font-medium mb-4">Settings</h2>
                 
-                {/* Export Data Section */}
-                <div className="mb-6 p-4 border dark:border-gray-700 rounded-lg">
+                {/* Theme Settings */}
+                <div className="p-4 border dark:border-gray-700 rounded-lg">
+                  <h3 className="text-sm font-medium mb-4">Appearance</h3>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Dark Mode</span>
+                    <button
+                      onClick={toggleTheme}
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-gray-400 dark:text-gray-500"
+                      title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                    >
+                      {isDark ? (
+                        <SunIcon className="w-5 h-5" />
+                      ) : (
+                        <MoonIcon className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Data Management */}
+                <div className="p-4 border dark:border-gray-700 rounded-lg">
                   <h3 className="text-sm font-medium mb-2">Data Management</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                     Export your tasks, roles, and tracking data as a JSON file
@@ -1202,16 +1627,6 @@ function App() {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Settings View */}
-        {currentView === 'settings' && (
-          <div className="flex-1 bg-white dark:bg-dark-surface overflow-y-auto">
-            <div className="p-4">
-              <h2 className="text-lg font-medium mb-4">Settings</h2>
-              {/* Add settings content here */}
             </div>
           </div>
         )}
@@ -1384,6 +1799,42 @@ function App() {
                 className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
               >
                 {editingRole ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Organization Modal */}
+      {isCreateOrgModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-dark-surface p-4 rounded-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium mb-4">Create Organization</h3>
+            <input
+              type="text"
+              placeholder="Organization name"
+              value={newOrgName}
+              onChange={(e) => setNewOrgName(e.target.value)}
+              className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-4"
+              autoFocus
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsCreateOrgModalOpen(false);
+                  setNewOrgName('');
+                }}
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateOrg}
+                disabled={!newOrgName.trim()}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+              >
+                Create
               </button>
             </div>
           </div>
