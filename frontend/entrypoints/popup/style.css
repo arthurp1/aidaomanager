@@ -52,7 +52,13 @@ button {
 
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid rgba(99, 102, 241, 0); /* Very subtle outline */
+  outline-offset: 2px;
+}
+
+/* Remove default button focus styles */
+button::-moz-focus-inner {
+  border: 0;
 }
 
 @media (prefers-color-scheme: light) {
@@ -63,4 +69,12 @@ button:focus-visible {
   a:hover {
     color: #747bff;
   }
+}
+
+/* Add these styles after the existing rules */
+button:active,
+a:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+  transition: all 0.1s ease;
 }
