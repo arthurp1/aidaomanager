@@ -1,4 +1,2 @@
 node_modules/
 .env
-data/discord.json
-data/discord_filtered.json

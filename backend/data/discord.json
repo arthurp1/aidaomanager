@@ -1,0 +1,492 @@
+[
+  {
+    "id": "1337790150926925928",
+    "content": "<@915927775909642240>, what up, how are you?",
+    "authorId": "1205593973591253083",
+    "authorUsername": "mauricepoot_69195",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-08T14:20:26.920Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "emoji": {
+          "name": "👍",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1205593973591253083",
+            "username": "mauricepoot_69195"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1337785552564518964",
+    "content": "https://meet.google.com/aux-ebwe-mdt",
+    "authorId": "1205593973591253083",
+    "authorUsername": "mauricepoot_69195",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-08T14:02:10.585Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "emoji": {
+          "name": "💯",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1205593973591253083",
+            "username": "mauricepoot_69195"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1336674720577224716",
+    "content": "PS. ik heb hiervoor een apart mapje aangemaakt binnen de github, genaamd frontend.\n\nJij kan een mapje maken genaamd \"backend\"\n\nDan behouden we dezelfde repository.. een monorepo wordt dat genoemd",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-05T12:28:07.601Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336671965888647218",
+    "content": "I looked at Meeting Transcript apps but their AI's are limited. Alternative solution to still have a cool MVP:\n\n- Build a https://n8n.io/ (open-source Zapier) integration, so we can get data from any application. \n- Focus on a webextension that can read from any page, including google meet.\n\nWhat are your thoughts?",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-05T12:17:10.832Z",
+    "editedTimestamp": "2025-02-05T12:17:24.423Z",
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "emoji": {
+          "name": "👍",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1065792726173487175",
+            "username": "demiurge.demi"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1336668986246430720",
+    "content": "GM! 🙂",
+    "authorId": "1008693413207609426",
+    "authorUsername": "manonjourney",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-05T12:05:20.430Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336387629448564736",
+    "content": "Yoo gents,\nHere's the link already: https://meet.google.com/jgx-zhjj-jpx?authuser=0\n\nSee you in a bit!",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-04T17:27:19.742Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336318074315345940",
+    "content": "Hey guys, this is also me, Arthur",
+    "authorId": "1008693413207609426",
+    "authorUsername": "manonjourney",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-04T12:50:56.506Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336317970539872380",
+    "content": "",
+    "authorId": "1008693413207609426",
+    "authorUsername": "manonjourney",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-04T12:50:31.764Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336238524126728273",
+    "content": "I will meet when I am awake and online.. which is most of the time for the next 2 weeks",
+    "authorId": "1065792726173487175",
+    "authorUsername": "demiurge.demi",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-04T07:34:50.263Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336031380706037781",
+    "content": "📊 **When should we meet?**\n\n2️⃣ Tuesday\n3️⃣ Wednesday\n4️⃣ Thursday\n5️⃣ Friday\n\nReact to vote! You can select multiple days that work for you.",
+    "authorId": "1335964402406527042",
+    "authorUsername": "dao-manager",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T17:51:43.423Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "emoji": {
+          "name": "2️⃣",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1335964402406527042",
+            "username": "dao-manager"
+          }
+        ]
+      },
+      {
+        "emoji": {
+          "name": "3️⃣",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1335964402406527042",
+            "username": "dao-manager"
+          }
+        ]
+      },
+      {
+        "emoji": {
+          "name": "4️⃣",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1335964402406527042",
+            "username": "dao-manager"
+          }
+        ]
+      },
+      {
+        "emoji": {
+          "name": "5️⃣",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1335964402406527042",
+            "username": "dao-manager"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1336030141226291270",
+    "content": "🚀 Bot is now online and ready to go!",
+    "authorId": "1335964402406527042",
+    "authorUsername": "dao-manager",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T17:46:47.908Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336029080725880937",
+    "content": "🚀 Bot is now online and ready to go!",
+    "authorId": "1335964402406527042",
+    "authorUsername": "dao-manager",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T17:42:35.065Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336026581092794470",
+    "content": "",
+    "authorId": "1335964402406527042",
+    "authorUsername": "dao-manager",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T17:32:39.106Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336025608219787308",
+    "content": "DAO Comm Agent\nMonday, February 3 · 18:30 – 19:00\nTime zone: Europe/Amsterdam\nGoogle Meet joining info\nVideo call link: https://meet.google.com/jgx-zhjj-jpx",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T17:28:47.155Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1336006916249358387",
+    "content": "we're meeting 1 hour later, because both David and I are still in traffic",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T16:14:30.642Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "emoji": {
+          "name": "👍",
+          "id": null,
+          "animated": false
+        },
+        "count": 1,
+        "users": [
+          {
+            "userId": "1205593973591253083",
+            "username": "mauricepoot_69195"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "1335937009289662485",
+    "content": "Oh interesting! Thanks for sharing this info!",
+    "authorId": "1205593973591253083",
+    "authorUsername": "mauricepoot_69195",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:36:43.524Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335936965123768330",
+    "content": "Haha shit 😅",
+    "authorId": "1205593973591253083",
+    "authorUsername": "mauricepoot_69195",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:36:32.994Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335936524054695936",
+    "content": "haha was talking to myself for a while. make sure your study the original dao crack to understand the importance of \"security\" https://en.wikipedia.org/wiki/The_DAO",
+    "authorId": "1065792726173487175",
+    "authorUsername": "demiurge.demi",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:34:47.835Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [
+      {
+        "type": "article",
+        "url": "https://en.wikipedia.org/wiki/The_DAO",
+        "title": "The DAO",
+        "description": "The DAO was a digital decentralized autonomous organization and a form of investor-directed venture capital fund. After launching in April 2016 via a token sale, it became one of the largest crowdfunding campaigns in history, but it ceased activity after much of its funds - in the form of US$ exchanged for \"Ether-crypto coins\" - were taken in a ...",
+        "thumbnail": {
+          "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Christoph_Jentzsch.jpg/1200px-Christoph_Jentzsch.jpg",
+          "proxy_url": "https://images-ext-1.discordapp.net/external/MFvtoZ5yrYPNRBk3zVxSrodH7_94OHE-72OVWt2xygM/https/upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Christoph_Jentzsch.jpg/1200px-Christoph_Jentzsch.jpg",
+          "width": 1200,
+          "height": 1800,
+          "placeholder": "GBgKDQQIZGt5KYh4iIqIqAqKlXA4",
+          "placeholder_version": 1,
+          "flags": 0
+        }
+      }
+    ],
+    "reactions": []
+  },
+  {
+    "id": "1335936216536977420",
+    "content": "Gregory, the meeting ended so I got kicked out...",
+    "authorId": "1205593973591253083",
+    "authorUsername": "mauricepoot_69195",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:33:34.517Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335935374450622565",
+    "content": "good day",
+    "authorId": "1065792726173487175",
+    "authorUsername": "demiurge.demi",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:30:13.748Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335933955500802131",
+    "content": "",
+    "authorId": "1065792726173487175",
+    "authorUsername": "demiurge.demi",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:24:35.444Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335933893143953485",
+    "content": "",
+    "authorId": "915927775909642240",
+    "authorUsername": "eng.davidlumala",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:24:20.577Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335933405724016720",
+    "content": "",
+    "authorId": "915927775909642240",
+    "authorUsername": "eng.davidlumala",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:22:24.367Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335932917657899069",
+    "content": "Notion: https://soapy-raft-fed.notion.site/DAO-AI-Managers-18ce76924048804198a0d3064a3c5547?pvs=4",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:20:28.003Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [
+      {
+        "type": "article",
+        "url": "https://soapy-raft-fed.notion.site/DAO-AI-Managers-18ce76924048804198a0d3064a3c5547?pvs=4",
+        "title": "DAO AI Managers | Notion",
+        "description": "AI agents that confidentially track all your DAO team communications (eg. responsiveness in group chats, meeting call show-up rate) and provide automatic reminders and questions (”you missed 3 daily stand-up meetings in a row, what's up?”).",
+        "provider": {
+          "name": "AI Builders's Notion on Notion"
+        },
+        "thumbnail": {
+          "url": "https://soapy-raft-fed.notion.site/image/attachment%3Ac8bb128b-e5f5-461e-8033-e5b9add6d555%3ASocialMediaPreviewImage.png?table=block&id=18ce7692-4048-8041-98a0-d3064a3c5547&spaceId=f28762da-bac7-4605-ac4c-ed31d1dabcd1&width=2000&userId=&cache=v2",
+          "proxy_url": "https://images-ext-1.discordapp.net/external/zB7n4yjLOxiWX8uACeZjTG0nt0eaBJjPUxmIlFQ1uzA/%3Ftable%3Dblock%26id%3D18ce7692-4048-8041-98a0-d3064a3c5547%26spaceId%3Df28762da-bac7-4605-ac4c-ed31d1dabcd1%26width%3D2000%26userId%3D%26cache%3Dv2/https/soapy-raft-fed.notion.site/image/attachment%253Ac8bb128b-e5f5-461e-8033-e5b9add6d555%253ASocialMediaPreviewImage.png",
+          "width": 1200,
+          "height": 630,
+          "placeholder": "+vcFBIBwqM14dYjOiZUwWg9D1A==",
+          "placeholder_version": 1,
+          "flags": 0
+        }
+      }
+    ],
+    "reactions": []
+  },
+  {
+    "id": "1335932876814024766",
+    "content": "hi guys",
+    "authorId": "1334886393226465291",
+    "authorUsername": "artypwarty",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-03T11:20:18.265Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  },
+  {
+    "id": "1335595960478203915",
+    "content": "",
+    "authorId": "1205593973591253083",
+    "authorUsername": "mauricepoot_69195",
+    "channelId": "1335589609991831605",
+    "channelName": "general",
+    "timestamp": "2025-02-02T13:01:31.151Z",
+    "editedTimestamp": null,
+    "attachments": [],
+    "embeds": [],
+    "reactions": []
+  }
+]
