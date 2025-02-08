@@ -49,6 +49,17 @@ button {
   cursor: pointer;
   font: inherit;
 }
+body {
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0;
+  border: none;
+  padding: 0;
+}
+#root {
+  border-radius: 10px;
+  border: none;
+}
 
 button:focus,
 button:focus-visible {

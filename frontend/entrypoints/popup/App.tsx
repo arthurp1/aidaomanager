@@ -137,7 +137,10 @@ function App() {
         setRoles(storedRoles);
         
         setRequirements(storedRequirements);
-        setSelectedRole(storedState.selectedRole);
+        // Set selectedRole to 'everyone' if it's not set or invalid
+        setSelectedRole(storedState.selectedRole && storedRoles.some(r => r.id === storedState.selectedRole) 
+          ? storedState.selectedRole 
+          : 'everyone');
         setActiveTask(storedState.activeTask);
         setElapsedTime(storedState.elapsedTime);
       } catch (error) {
@@ -1233,7 +1236,7 @@ function App() {
   return (
     <div 
       ref={appRef}
-      className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col"
+      className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col rounded-lg"
     >
       {/* Dev Mode URL Display */}
       {devMode && (
@@ -1867,92 +1870,104 @@ function App() {
 
       {/* Role Modal */}
       {isRoleModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-dark-surface p-4 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">
-              {editingRole ? 'Edit Role' : 'New Role'}
-            </h3>
-            <input
-              type="text"
-              placeholder="Role name"
-              value={newRoleName}
-              onChange={(e) => setNewRoleName(e.target.value)}
-              className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-4"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  editingRole ? handleUpdateRole() : handleCreateRole();
-                }
-              }}
-              autoFocus
-            />
-
-            {/* Tool Search */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tools
-              </label>
-              <input
-                type="text"
-                placeholder="Search tools..."
-                value={toolSearch}
-                onChange={(e) => setToolSearch(e.target.value)}
-                className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-2"
-              />
-              
-              {/* Selected Tools */}
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedTools.map(tool => (
-                  <div 
-                    key={tool}
-                    className="flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm"
-                  >
-                    <span>{tool}</span>
-                    <button
-                      onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool))}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tool Suggestions */}
-              {toolSearch && (
-                <div className="max-h-40 overflow-y-auto border rounded dark:border-gray-600">
-                  {getFilteredTools().map(tool => (
-                    <button
-                      key={tool.url}
-                      onClick={() => {
-                        setSelectedTools(prev => [...prev, tool.url]);
-                        setToolSearch('');
-                      }}
-                      className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600"
-                    >
-                      <div className="text-sm font-medium">{tool.url}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {tool.description} • {tool.category}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl w-full max-w-2xl mx-4 h-[85vh] flex flex-col">
+            <div className="px-3 py-2 border-b dark:border-gray-700">
+              <h2 className="text-xs text-gray-500 dark:text-gray-400">
+                {editingRole ? 'Edit Role' : 'Create New Role'}
+              </h2>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {/* Role Name Input */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
+                  Role Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter role name..."
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      editingRole ? handleUpdateRole() : handleCreateRole();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {/* Tool Search */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
+                  Tools
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search tools..."
+                  value={toolSearch}
+                  onChange={(e) => setToolSearch(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                />
+                
+                {/* Selected Tools */}
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {selectedTools.map(tool => (
+                    <div 
+                      key={tool}
+                      className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                    >
+                      <span>{tool}</span>
+                      <button
+                        onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool))}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tool Suggestions */}
+                {toolSearch && (
+                  <div className="mt-1.5 border rounded-md shadow-lg dark:border-gray-600 max-h-48 overflow-y-auto">
+                    {getFilteredTools().map(tool => (
+                      <button
+                        key={tool.url}
+                        onClick={() => {
+                          setSelectedTools(prev => [...prev, tool.url]);
+                          setToolSearch('');
+                        }}
+                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600"
+                      >
+                        <div className="text-sm font-medium dark:text-gray-200">{tool.url}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {tool.description} • {tool.category}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-3 border-t dark:border-gray-700 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setIsRoleModalOpen(false);
                   setSelectedTools([]);
                   setToolSearch('');
                 }}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400"
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 Cancel
               </button>
               <button
                 onClick={editingRole ? handleUpdateRole : handleCreateRole}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                disabled={!newRoleName.trim()}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingRole ? 'Update' : 'Create'}
               </button>
@@ -1963,32 +1978,42 @@ function App() {
 
       {/* Create Organization Modal */}
       {isCreateOrgModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white dark:bg-dark-surface p-4 rounded-lg max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium mb-4">Create Organization</h3>
-            <input
-              type="text"
-              placeholder="Organization name"
-              value={newOrgName}
-              onChange={(e) => setNewOrgName(e.target.value)}
-              className="w-full p-2 border rounded dark:bg-dark-bg dark:border-gray-600 mb-4"
-              autoFocus
-            />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-dark-surface rounded-lg shadow-xl w-full max-w-2xl mx-4 h-[85vh] flex flex-col">
+            <div className="px-3 py-2 border-b dark:border-gray-700">
+              <h2 className="text-xs text-gray-500 dark:text-gray-400">Create New Organization</h2>
+            </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
+                  Organization Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter organization name..."
+                  value={newOrgName}
+                  onChange={(e) => setNewOrgName(e.target.value)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="p-3 border-t dark:border-gray-700 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setIsCreateOrgModalOpen(false);
                   setNewOrgName('');
                 }}
-                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400"
+                className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateOrg}
                 disabled={!newOrgName.trim()}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create
               </button>
