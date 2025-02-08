@@ -52,6 +52,14 @@ interface WalletInfo {
   chainId: number;
 }
 
+// Add interface for Tool
+interface Tool {
+  name: string;
+  url: string;
+  logomark: string;
+  publicDocs: string;
+}
+
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
 
 // Initialize the model
@@ -99,6 +107,7 @@ function App() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [devMode, setDevMode] = useState<boolean>(true); // Dev mode enabled by default
   const aiAssistantRef = useRef<AIAssistantHandle>(null);
+  const [tools, setTools] = useState<Tool[]>([]);
 
   // Initialize database and load data
   useEffect(() => {
@@ -195,20 +204,21 @@ function App() {
     });
   }, [activeTask, selectedRole, elapsedTime, isDbInitialized]);
 
-  const getFilteredTools = () => {
-    const allTools: { url: string; description: string; category: string }[] = [];
-    Object.entries(toolCategories).forEach(([category, tools]) => {
-      Object.entries(tools).forEach(([url, tool]) => {
-        allTools.push({ url, description: tool.description, category });
-      });
-    });
+  // Add useEffect to load tools
+  useEffect(() => {
+    fetch(chrome.runtime.getURL('tools_docs.json'))
+      .then(response => response.json())
+      .then(data => setTools(data))
+      .catch(error => console.error('Error loading tools:', error));
+  }, []);
 
-    return allTools.filter(
+  // Update getFilteredTools function
+  const getFilteredTools = () => {
+    return tools.filter(
       tool => 
         !selectedTools.includes(tool.url) && 
         (tool.url.toLowerCase().includes(toolSearch.toLowerCase()) ||
-         tool.description.toLowerCase().includes(toolSearch.toLowerCase()) ||
-         tool.category.toLowerCase().includes(toolSearch.toLowerCase()))
+         tool.name.toLowerCase().includes(toolSearch.toLowerCase()))
     );
   };
 
@@ -1250,7 +1260,6 @@ function App() {
                   <TaskForm
                     onCreateTask={handleCreateTask}
                     onCancel={() => setShowTaskForm(false)}
-                    toolCategories={toolCategories}
                   />
                 )}
               </div>
@@ -1664,20 +1673,29 @@ function App() {
                 
                 {/* Selected Tools */}
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {selectedTools.map(tool => (
-                    <div 
-                      key={tool}
-                      className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                    >
-                      <span>{tool}</span>
-                      <button
-                        onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool))}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                  {selectedTools.map(toolUrl => {
+                    const tool = tools.find(t => t.url === toolUrl);
+                    if (!tool) return null;
+                    return (
+                      <div 
+                        key={tool.url}
+                        className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
                       >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                        <img 
+                          src={tool.logomark} 
+                          alt={`${tool.name} logo`} 
+                          className="w-4 h-4 object-contain"
+                        />
+                        <span>{tool.name}</span>
+                        <button
+                          onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool.url))}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Tool Suggestions */}
@@ -1690,11 +1708,16 @@ function App() {
                           setSelectedTools(prev => [...prev, tool.url]);
                           setToolSearch('');
                         }}
-                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600"
+                        className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600 flex items-center gap-2"
                       >
-                        <div className="text-sm font-medium dark:text-gray-200">{tool.url}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {tool.description} • {tool.category}
+                        <img 
+                          src={tool.logomark} 
+                          alt={`${tool.name} logo`} 
+                          className="w-5 h-5 object-contain"
+                        />
+                        <div>
+                          <div className="text-sm font-medium dark:text-gray-200">{tool.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{tool.url}</div>
                         </div>
                       </button>
                     ))}

@@ -7,9 +7,10 @@ const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
 interface Tool {
+  name: string;
   url: string;
-  description: string;
-  category: string;
+  logomark: string;
+  publicDocs: string;
 }
 
 interface Endpoint {
@@ -58,24 +59,19 @@ interface GeneratedRule {
   logic: string;
 }
 
-// Type for the form input that excludes the description field
-type RequirementFormData = Omit<Requirement, 'description'>;
-
 interface TaskFormProps {
   onCreateTask: (task: { 
     title: string; 
-    estimatedTime: number; 
+    estimatedTime: number;
     tools: string[];
-    requirements: RequirementFormData[];
+    requirements: Requirement[];
   }) => void;
   onCancel: () => void;
-  toolCategories: Record<string, Record<string, any>>;
 }
 
 export const TaskForm: React.FC<TaskFormProps> = ({ 
   onCreateTask, 
-  onCancel,
-  toolCategories 
+  onCancel
 }) => {
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskTime, setNewTaskTime] = useState<number>(0);
@@ -90,22 +86,39 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     title: '',
     measure: '',
     emoji: '📋',
-    severity: 'medium' as const
   });
+  const [tools, setTools] = useState<Tool[]>([]);
 
-  // Function to get detailed tool information
-  const getToolDetails = (toolUrl: string): ToolDetails | null => {
-    for (const [category, tools] of Object.entries(toolCategories)) {
-      if (toolUrl in tools) {
-        const tool = tools[toolUrl];
-        return {
-          category,
-          url: toolUrl,
-          ...tool,
-        };
-      }
-    }
-    return null;
+  // Add useEffect to load tools
+  useEffect(() => {
+    console.log('Fetching tools...');
+    fetch(chrome.runtime.getURL('tools_docs.json'))
+      .then(response => {
+        console.log('Tools response:', response);
+        return response.json();
+      })
+      .then(data => {
+        console.log('Loaded tools:', data);
+        setTools(data);
+      })
+      .catch(error => console.error('Error loading tools:', error));
+  }, []);
+
+  // Update getFilteredTools function
+  const getFilteredTools = () => {
+    console.log('Current tools:', tools);
+    console.log('Current search:', taskToolSearch);
+    console.log('Current selected tools:', newTaskTools);
+    
+    const filtered = tools.filter(
+      tool => 
+        !newTaskTools.includes(tool.url) && 
+        (tool.url.toLowerCase().includes(taskToolSearch.toLowerCase()) ||
+         tool.name.toLowerCase().includes(taskToolSearch.toLowerCase()))
+    );
+    
+    console.log('Filtered tools:', filtered);
+    return filtered;
   };
 
   // Function to generate requirements using Gemini
@@ -116,144 +129,32 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     
     try {
       // Gather tool information
-      const toolsInfo = newTaskTools.map(toolUrl => getToolDetails(toolUrl)).filter((tool): tool is NonNullable<ReturnType<typeof getToolDetails>> => tool !== null);
+      const toolsInfo = newTaskTools.map(toolUrl => {
+        const tool = tools.find(t => t.url === toolUrl);
+        return tool ? {
+          name: tool.name,
+          url: tool.url
+        } : null;
+      }).filter((tool): tool is { name: string; url: string } => tool !== null);
       
-      const requirements = toolsInfo.map(tool => {
-        const requirements = [];
+      const newRequirements = toolsInfo.map(tool => ({
+        id: Math.random().toString(36).substr(2, 9),
+        emoji: '⚡',
+        alternativeEmojis: ['🔧', '🛠️'],
+        title: 'Tool Usage',
+        measure: `${tool.name} activity score (min 4/5)`,
+        alternativeMeasures: [
+          `${tool.name} engagement rate`,
+          `${tool.name} usage frequency`
+        ],
+        severity: 'high',
+        description: `Track usage and engagement with ${tool.name}`,
+        rules: [] as Rule[]
+      }));
 
-        // Development tools requirements
-        if (tool.category === 'development') {
-          requirements.push({
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '⚡',
-            alternativeEmojis: ['🔧', '🛠️'],
-            title: 'Code Quality',
-            measure: 'Code review rating (min 4/5)',
-            alternativeMeasures: [
-              'Static analysis score (min 85%)',
-              'Test coverage (min 80%)'
-            ],
-            severity: 'high',
-            description: 'Maintain high code quality standards',
-            rules: []
-          });
-
-          requirements.push({
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '🚀',
-            alternativeEmojis: ['⚙️', '📊'],
-            title: 'Code Efficiency',
-            measure: 'Performance score (min 90/100)',
-            alternativeMeasures: [
-              'Load time improvement',
-              'Resource utilization'
-            ],
-            severity: 'medium',
-            description: 'Ensure code performs efficiently',
-            rules: []
-          });
-        }
-
-        // Communication tools requirements
-        if (tool.category === 'communication') {
-          requirements.push({
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '💬',
-            alternativeEmojis: ['📢', '🗣️'],
-            title: 'Active Participation',
-            measure: 'Daily check-ins completed',
-            alternativeMeasures: [
-              'Response time (max 4 hours)',
-              'Weekly message count (min 10)'
-            ],
-            severity: 'medium',
-            description: 'Maintain active communication',
-            rules: []
-          });
-
-          if (tool.webtrack?.multitask_chance === 'high') {
-            requirements.push({
-              id: Math.random().toString(36).substr(2, 9),
-              emoji: '🤝',
-              alternativeEmojis: ['💡', '🎯'],
-              title: 'Engagement Quality',
-              measure: 'Substantive messages per week (min 5)',
-              alternativeMeasures: [
-                'Thread participation rate',
-                'Reaction engagement score'
-              ],
-              severity: 'medium',
-              description: 'Ensure meaningful engagement',
-              rules: []
-            });
-          }
-        }
-
-        // Productivity tools requirements
-        if (tool.category === 'productivity') {
-          requirements.push({
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '📋',
-            alternativeEmojis: ['✅', '⏱️'],
-            title: 'Task Management',
-            measure: 'Daily status updates completed',
-            alternativeMeasures: [
-              'Task completion rate (min 85%)',
-              'Milestone adherence rate'
-            ],
-            severity: 'high',
-            description: 'Maintain organized task tracking',
-            rules: []
-          });
-
-          if (tool.webtrack?.search?.available) {
-            requirements.push({
-              id: Math.random().toString(36).substr(2, 9),
-              emoji: '📚',
-              alternativeEmojis: ['✍️', '🔍'],
-              title: 'Documentation Quality',
-              measure: 'Documentation updates per week (min 2)',
-              alternativeMeasures: [
-                'Documentation clarity score',
-                'Search success rate'
-              ],
-              severity: 'medium',
-              description: 'Keep documentation up to date',
-              rules: []
-            });
-          }
-        }
-
-        // Research tools requirements
-        if (tool.category === 'research') {
-          requirements.push({
-            id: Math.random().toString(36).substr(2, 9),
-            emoji: '🔬',
-            alternativeEmojis: ['📖', '🎓'],
-            title: 'Research Depth',
-            measure: 'Papers reviewed per week (min 5)',
-            alternativeMeasures: [
-              'Citation quality score',
-              'Research coverage index'
-            ],
-            severity: 'high',
-            description: 'Maintain thorough research standards',
-            rules: []
-          });
-        }
-
-        return requirements;
-      }).flat();
-
-      // Filter out duplicate requirements
-      const uniqueRequirements = requirements.filter((req, index, self) =>
-        index === self.findIndex((r) => r.title === req.title)
-      );
-
-      setRequirements(uniqueRequirements);
+      setRequirements(newRequirements);
     } catch (error) {
       console.error('Error generating requirements:', error);
-      setRequirements([]);
     } finally {
       setIsGeneratingRequirements(false);
     }
@@ -409,23 +310,6 @@ Return as JSON array with format:
     setRequirements([]);
   };
 
-  const getFilteredTools = () => {
-    const allTools: Tool[] = [];
-    Object.entries(toolCategories).forEach(([category, tools]) => {
-      Object.entries(tools).forEach(([url, tool]) => {
-        allTools.push({ url, description: tool.description, category });
-      });
-    });
-
-    return allTools.filter(
-      tool => 
-        !newTaskTools.includes(tool.url) && 
-        (tool.url.toLowerCase().includes(taskToolSearch.toLowerCase()) ||
-         tool.description.toLowerCase().includes(taskToolSearch.toLowerCase()) ||
-         tool.category.toLowerCase().includes(taskToolSearch.toLowerCase()))
-    );
-  };
-
   const handleAddManualRequirement = () => {
     if (!newRequirement.title.trim() || !newRequirement.measure.trim()) return;
 
@@ -436,7 +320,7 @@ Return as JSON array with format:
       emoji: newRequirement.emoji,
       alternativeEmojis: ['✅', '📊', '🎯', '⭐'],
       alternativeMeasures: [],
-      severity: newRequirement.severity,
+      severity: 'medium',
       description: `Requirement to track ${newRequirement.measure}`,
       rules: []
     };
@@ -446,7 +330,6 @@ Return as JSON array with format:
       title: '',
       measure: '',
       emoji: '📋',
-      severity: 'medium'
     });
     setShowManualRequirement(false);
   };
@@ -503,20 +386,29 @@ Return as JSON array with format:
             />
             {/* Selected Tools */}
             <div className="flex flex-wrap gap-1.5 mt-1.5">
-              {newTaskTools.map(tool => (
-                <div 
-                  key={tool}
-                  className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                >
-                  <span>{tool}</span>
-                  <button
-                    onClick={() => setNewTaskTools(prev => prev.filter(t => t !== tool))}
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+              {newTaskTools.map(toolUrl => {
+                const tool = tools.find(t => t.url === toolUrl);
+                if (!tool) return null;
+                return (
+                  <div 
+                    key={tool.url}
+                    className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
+                    <img 
+                      src={tool.logomark} 
+                      alt={`${tool.name} logo`} 
+                      className="w-4 h-4 object-contain"
+                    />
+                    <span>{tool.name}</span>
+                    <button
+                      onClick={() => setNewTaskTools(prev => prev.filter(t => t !== tool.url))}
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             {/* Tool Suggestions - Positioned absolutely */}
             {taskToolSearch && (
@@ -528,11 +420,16 @@ Return as JSON array with format:
                       setNewTaskTools(prev => [...prev, tool.url]);
                       setTaskToolSearch('');
                     }}
-                    className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600"
+                    className="w-full px-2 py-1.5 text-left hover:bg-gray-100 dark:hover:bg-dark-hover border-b last:border-b-0 dark:border-gray-600 flex items-center gap-2"
                   >
-                    <div className="text-sm font-medium dark:text-gray-200">{tool.url}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {tool.description} • {tool.category}
+                    <img 
+                      src={tool.logomark} 
+                      alt={`${tool.name} logo`} 
+                      className="w-5 h-5 object-contain"
+                    />
+                    <div>
+                      <div className="text-sm font-medium dark:text-gray-200">{tool.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{tool.url}</div>
                     </div>
                   </button>
                 ))}
