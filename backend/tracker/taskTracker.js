@@ -96,7 +96,7 @@ class TaskTracker {
             });
 
             if (evaluationResult.shouldNotify) {
-                console.log(`[${this.formatDateTime(new Date())}] Notification: ${task.name}`);
+                console.log(`[${this.formatDateTime(new Date())}] Message send`);
                 await this.notificationManager.handleNotification(
                     evaluationResult,
                     task,

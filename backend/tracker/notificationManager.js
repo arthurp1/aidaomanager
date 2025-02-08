@@ -87,16 +87,30 @@ class NotificationManager {
         }
     }
 
+    /**
+     * Determines if a new message can be sent based on rate limiting rules.
+     * Ensures messages are not sent more frequently than once per minute.
+     * @param {string|Date|null} lastMessageTime - Timestamp of the last message
+     * @param {Date} now - Current timestamp
+     * @returns {boolean} - Whether a new message can be sent
+     */
     canSendMessage(lastMessageTime, now) {
         if (!lastMessageTime) return true;
         
-        const lastMessage = new Date(lastMessageTime);
-        const minutesSinceLastMessage = (now - lastMessage) / (1000 * 60);
-        return minutesSinceLastMessage >= 1;
+        try {
+            const lastMessage = lastMessageTime instanceof Date ? lastMessageTime : new Date(lastMessageTime);
+            if (isNaN(lastMessage.getTime())) return true; // Handle invalid date
+            
+            const minutesSinceLastMessage = (now - lastMessage) / (1000 * 60);
+            return minutesSinceLastMessage >= 1;
+        } catch (error) {
+            console.error('Error in rate limiting calculation:', error);
+            return true; // Fail open to ensure notifications aren't completely blocked
+        }
     }
 
     formatExcellenceMessage(evaluation, task, requirement) {
-        return `🌟 Outstanding Achievement! 🌟\n\n${evaluation.message}\n\nKeep up the amazing work! 💪`;
+        return evaluation.message;
     }
 
     formatDirectMessage(evaluation, task, requirement) {
