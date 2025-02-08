@@ -1,0 +1,52 @@
+{
+  "discord": {
+    "authorId": {
+      "description": "Unique identifier of the Discord user",
+      "type": "string"
+    },
+    "authorUsername": {
+      "description": "Username of the Discord user",
+      "type": "string"
+    },
+    "totalMessages": {
+      "description": "Total number of messages sent by the user",
+      "type": "number"
+    },
+    "firstMessage": {
+      "description": "Timestamp of the user's first message",
+      "type": "string|null"
+    },
+    "lastMessage": {
+      "description": "Timestamp of the user's most recent message",
+      "type": "string|null"
+    },
+    "editedMessages": {
+      "description": "Number of messages that were edited by the user",
+      "type": "number"
+    },
+    "attachmentsCount": {
+      "description": "Number of files or media attachments sent by the user",
+      "type": "number"
+    },
+    "embedsCount": {
+      "description": "Number of rich embeds (links, images, etc.) in user's messages",
+      "type": "number"
+    },
+    "mentionsSent": {
+      "description": "Number of times the user mentioned other users/roles",
+      "type": "number"
+    },
+    "totalReactionsReceived": {
+      "description": "Total number of reactions received on user's messages",
+      "type": "number"
+    },
+    "totalMessageLength": {
+      "description": "Total character count of all messages sent by the user",
+      "type": "number"
+    },
+    "responseTimes": {
+      "description": "Array of response times in seconds between user's messages",
+      "type": "array"
+    }
+  }
+} 

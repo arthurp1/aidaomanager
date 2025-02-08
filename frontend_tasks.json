@@ -1,0 +1,174 @@
+{
+  "tasks": [
+    {
+      "id": "c6b0df8a-2910-4ccf-b070-880d139ff393",
+      "title": "Be Active in Discord",
+      "roleId": "everyone",
+      "createdAt": "2025-02-06T10:27:18.620Z",
+      "estimatedTime": 2,
+      "tools": [
+        "discord.com"
+      ],
+      "trackedTime": 0,
+      "requirements_active": [
+        "daily_activity",
+        "response_time",
+        "quick_response_test"
+      ],
+      "requirements": [
+        {
+          "id": "daily_activity",
+          "emoji": "💬",
+          "title": "Daily Chat Activity",
+          "measure": "totalMessages",
+          "severity": "medium",
+          "isAccepted": true,
+          "rules": [
+            {
+              "id": "great_daily_msgs",
+              "performanceLevel": "😍",
+              "text": "Maintains high daily message activity",
+              "logic": "Consistently high daily engagement shows dedication",
+              "pattern": {
+                "condition": "more_than",
+                "threshold": 10,
+                "metric": "totalMessages",
+                "manipulation": "cumulative",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 1,
+                  "unit": "days"
+                }
+              }
+            },
+            {
+              "id": "ok_daily_msgs",
+              "performanceLevel": "🙂",
+              "text": "Maintains moderate daily message activity",
+              "logic": "Regular daily presence is maintained",
+              "pattern": {
+                "condition": "more_than",
+                "threshold": 5,
+                "metric": "totalMessages",
+                "manipulation": "cumulative",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 1,
+                  "unit": "days"
+                }
+              }
+            },
+            {
+              "id": "low_daily_msgs",
+              "performanceLevel": "😟",
+              "text": "Low daily message activity",
+              "logic": "Engagement needs improvement",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 3,
+                "metric": "totalMessages",
+                "manipulation": "cumulative",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 1,
+                  "unit": "days"
+                }
+              }
+            }
+          ],
+          "description": "Track daily message activity in Discord"
+        },
+        {
+          "id": "response_time",
+          "emoji": "⚡",
+          "title": "Response Time",
+          "measure": "responseTimes",
+          "severity": "high",
+          "isAccepted": true,
+          "rules": [
+            {
+              "id": "great_response",
+              "performanceLevel": "😍",
+              "text": "Excellent response time to messages",
+              "logic": "Quick responses indicate high engagement",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 300,
+                "metric": "responseTimes",
+                "manipulation": "average",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 7,
+                  "unit": "days"
+                }
+              }
+            },
+            {
+              "id": "ok_response",
+              "performanceLevel": "🙂",
+              "text": "Good response time to messages",
+              "logic": "Reasonable response time maintained",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 1800,
+                "metric": "responseTimes",
+                "manipulation": "average",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 7,
+                  "unit": "days"
+                }
+              }
+            },
+            {
+              "id": "slow_response",
+              "performanceLevel": "😟",
+              "text": "Slow response time to messages",
+              "logic": "Response time needs improvement",
+              "pattern": {
+                "condition": "more_than",
+                "threshold": 3600,
+                "metric": "responseTimes",
+                "manipulation": "average",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 7,
+                  "unit": "days"
+                }
+              }
+            }
+          ],
+          "description": "Track response time to mentions and messages"
+        },
+        {
+          "id": "quick_response_test",
+          "emoji": "🎯",
+          "title": "Quick Response Test",
+          "measure": "responseTimes",
+          "severity": "low",
+          "isAccepted": true,
+          "rules": [
+            {
+              "id": "three_sec_response",
+              "performanceLevel": "😍",
+              "text": "Lightning-fast response achieved",
+              "logic": "Demonstrates ability to respond instantly",
+              "pattern": {
+                "condition": "less_than",
+                "threshold": 3,
+                "metric": "responseTimes",
+                "manipulation": "minimum",
+                "timePattern": {
+                  "type": "within_period",
+                  "value": 30,
+                  "unit": "seconds"
+                }
+              }
+            }
+          ],
+          "description": "Special test for very quick responses"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "rules": [
+    /* Example rules for Discord metrics */
+    {
+      // id: string, unique identifier
+      "id": "dsc_msg_freq",
+      // performanceLevel: "😍" | "🙂" | "😐" | "😟"
+      "performanceLevel": "😍",
+      // text: string, human-readable description
+      "text": "Sends messages regularly throughout the week",
+      // logic: string, explanation for the rule
+      "logic": "Regular communication indicates active participation",
+      // pattern: object, defines how to evaluate the rule
+      "pattern": {
+        // condition: "more_than" | "less_than" | "equal_to" | "between"
+        "condition": "more_than",
+        // threshold: number
+        "threshold": 20,
+        // metric: must match one of the available Tool metrics
+        "metric": "messageCount",
+        // manipulation: "maximum" | "minimum" | "cumulative" | "time_derivative" | "minus_today" | "average"
+        "manipulation": "cumulative",
+        // timePattern: object, defines the time window for evaluation
+        "timePattern": {
+          // type: "in_a_row" | "within_period" | "daily_average" 
+          "type": "within_period",
+          // value: number
+          "value": 7,
+          // unit: "days" | "weeks" | "minutes" | "seconds" | "hours"
+          "unit": "seconds"
+        }
+      }
+    },
+    {
+      "id": "dsc_response",
+      "performanceLevel": "🙂",
+      "text": "Quick response times in conversations",
+      "logic": "Fast response times indicate engagement",
+      "pattern": {
+        "condition": "less_than",
+        "threshold": 300,
+        "metric": "responseDelays",
+        "manipulation": "average",
+        "timePattern": {
+          "type": "within_period",
+          "value": 7
+        }
+      }
+    },
+    {
+      "id": "dsc_content",
+      "performanceLevel": "😍",
+      "text": "Creates detailed, meaningful messages",
+      "logic": "Longer messages often indicate more thoughtful contributions",
+      "pattern": {
+        "condition": "more_than",
+        "threshold": 100,
+        "metric": "characterCount",
+        "manipulation": "average",
+        "timePattern": {
+          "type": "within_period",
+          "value": 7
+        }
+      }
+    },
+    {
+      "id": "dsc_engagement",
+      "performanceLevel": "🙂",
+      "text": "Receives reactions from other members",
+      "logic": "Reactions indicate valuable contributions",
+      "pattern": {
+        "condition": "more_than",
+        "threshold": 5,
+        "metric": "reactionCount",
+        "manipulation": "cumulative",
+        "timePattern": {
+          "type": "within_period",
+          "value": 7
+        }
+      }
+    },
+    {
+      "id": "dsc_collaboration",
+      "performanceLevel": "🙂",
+      "text": "Mentions and interacts with other members",
+      "logic": "Mentioning others shows collaborative behavior",
+      "pattern": {
+        "condition": "more_than",
+        "threshold": 3,
+        "metric": "mentionCount",
+        "manipulation": "cumulative",
+        "timePattern": {
+          "type": "within_period",
+          "value": 7
+        }
+      }
+    }
+  ],
+  "_comment": {
+    "manipulation_types": {
+      "maximum": "Highest value in the period",
+      "minimum": "Lowest value in the period",
+      "cumulative": "Sum of all values in the period",
+      "time_derivative": "Rate of change over time",
+      "minus_today": "Cumulative excluding today",
+      "average": "Mean value over the period"
+    },
+    "condition_types": {
+      "more_than": "Value must exceed threshold",
+      "less_than": "Value must be below threshold",
+      "equal_to": "Value must match threshold exactly",
+      "between": "Value must be within range (requires two thresholds)"
+    },
+    "timePattern_types": {
+      "in_a_row": "Consecutive days meeting condition",
+      "within_period": "Total over specified number of days",
+      "daily_average": "Average per day over period"
+    },
+    "performanceLevels": {
+      "😍": "Exceptional performance",
+      "🙂": "Good performance",
+      "😐": "Neutral performance",
+      "😟": "Needs improvement"
+    }
+  }
+} 
