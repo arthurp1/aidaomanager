@@ -128,6 +128,8 @@ async function fetchAndStoreMessages() {
         // Combine and save messages
         const allMessages = [...existingMessages, ...messages];
         await saveMessages(allMessages);
+        
+        console.log('Messages fetched and saved successfully');
 
         return allMessages;
     } catch (error) {
