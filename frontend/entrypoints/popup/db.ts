@@ -12,6 +12,21 @@ interface Message {
   timestamp: Date;
 }
 
+interface SocialConnections {
+  email?: string;
+  discord?: string;
+  telegram?: string;
+  github?: string;
+}
+
+interface WalletInfo {
+  address: string;
+  balance: string;
+  organizations: any[];
+  socials: SocialConnections;
+  chainId: number;
+}
+
 interface DBSchema {
   tasks: Task[];
   subtasks: SubTask[];
@@ -28,12 +43,16 @@ interface AppState {
   elapsedTime: number;
   messages?: Message[];
   messageScrollPosition?: number;
+  messageScrollPositions?: Record<string, number>;
+  walletInfo?: WalletInfo;
 }
 
 class DatabaseService {
   private db: IDBDatabase | null = null;
   private isInitializing: boolean = false;
   private initPromise: Promise<void> | null = null;
+  private subscribers: Set<(state: AppState) => void> = new Set();
+  private currentState: AppState | null = null;
 
   async init(): Promise<void> {
     // If already initialized, return immediately
@@ -53,9 +72,13 @@ class DatabaseService {
           reject(request.error);
         };
 
-        request.onsuccess = () => {
+        request.onsuccess = async () => {
           this.db = request.result;
           this.isInitializing = false;
+          // Load initial state
+          this.currentState = await this.getState();
+          // Notify subscribers
+          this.notifySubscribers();
           resolve();
         };
 
@@ -223,7 +246,32 @@ class DatabaseService {
         createdAt: state.activeTask.createdAt.toISOString()
       } : null
     };
-    store.put(stateToSave);
+    await store.put(stateToSave);
+    this.currentState = state;
+    this.notifySubscribers();
+  }
+
+  // Add subscription methods
+  subscribe(callback: (state: AppState) => void) {
+    this.subscribers.add(callback);
+    // Immediately call with current state if available
+    if (this.currentState) {
+      callback(this.currentState);
+    }
+    // Return unsubscribe function
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  }
+
+  private notifySubscribers() {
+    if (!this.currentState) return;
+    this.subscribers.forEach(callback => callback(this.currentState!));
+  }
+
+  // Add method to get current state synchronously
+  getCurrentState(): AppState | null {
+    return this.currentState;
   }
 }
 
