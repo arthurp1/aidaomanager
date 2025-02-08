@@ -15,6 +15,7 @@ import './App.css';
 import { db } from './db';
 import { Task, SubTask, Role, Requirement } from './types';
 import mockWalletData from './data/wallet.json';
+import { createCoinbaseWalletSDK } from '@coinbase/wallet-sdk';
 
 // Add new interfaces after existing ones
 interface Organization {
@@ -30,11 +31,22 @@ interface SocialConnections {
   github?: string;
 }
 
+interface EthereumProvider {
+  request(args: { method: string; params?: any[] }): Promise<any>;
+  on(eventName: string, handler: (...args: any[]) => void): void;
+  removeListener(eventName: string, handler: (...args: any[]) => void): void;
+}
+
+interface WalletSDK {
+  getProvider(): EthereumProvider;
+}
+
 interface WalletInfo {
   address: string;
   balance: string;
   organizations: Organization[];
   socials: SocialConnections;
+  smartWallet?: WalletSDK;
 }
 
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
@@ -73,6 +85,8 @@ function App() {
   const [inviteCode, setInviteCode] = useState('');
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialInputs, setSocialInputs] = useState<SocialConnections>({});
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [smartWalletError, setSmartWalletError] = useState<string | null>(null);
 
   // Initialize database and load data
   useEffect(() => {
@@ -968,8 +982,22 @@ function App() {
     setInviteCode('');
   };
 
-  const handleLogout = () => {
-    setWalletInfo(null);
+  const handleLogout = async () => {
+    try {
+      if (walletInfo?.smartWallet) {
+        // Just clear the wallet info from state
+        // The provider will automatically disconnect when the user closes the session
+        setWalletInfo(null);
+        setSmartWalletError(null);
+        
+        // Clear any stored provider state
+        localStorage.removeItem('walletconnect');
+        localStorage.removeItem('WALLET_CONNECT_V2_INITIALIZED');
+      }
+    } catch (error) {
+      console.error('Error logging out:', error);
+      setSmartWalletError(error instanceof Error ? error.message : 'Failed to logout');
+    }
   };
 
   const handleLeaveOrg = (orgId: string) => {
@@ -987,6 +1015,88 @@ function App() {
       socials: { ...prev.socials, ...socialInputs }
     } : null);
     setEditingSocials(false);
+  };
+
+  // Initialize Smart Wallet SDK
+  useEffect(() => {
+    const initializeSmartWallet = async () => {
+      try {
+        const smartWallet = createCoinbaseWalletSDK({
+          appName: 'AIDAO Manager'
+        });
+        
+        // Get the provider
+        const provider = smartWallet.getProvider();
+        
+        // Check if we have a connected account
+        try {
+          const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
+          if (accounts && accounts.length > 0) {
+            const address = accounts[0];
+            const balanceHex = await provider.request({ 
+              method: 'eth_getBalance',
+              params: [address, 'latest']
+            }) as string;
+            const balance = parseInt(balanceHex, 16) / 1e18; // Convert from wei to ETH
+            
+            setWalletInfo({
+              address,
+              balance: `${balance.toFixed(4)} ETH`,
+              organizations: [],
+              socials: {},
+              smartWallet
+            });
+          }
+        } catch (error) {
+          console.error('Error checking wallet connection:', error);
+        }
+      } catch (error) {
+        console.error('Error initializing smart wallet:', error);
+        setSmartWalletError(error instanceof Error ? error.message : 'Failed to initialize smart wallet');
+      }
+    };
+
+    initializeSmartWallet();
+  }, []);
+
+  const handleConnectWallet = async () => {
+    setIsConnecting(true);
+    setSmartWalletError(null);
+    
+    try {
+      const smartWallet = createCoinbaseWalletSDK({
+        appName: 'AIDAO Manager'
+      });
+      
+      const provider = smartWallet.getProvider();
+      
+      // Request account access
+      const accounts = await provider.request({ method: 'eth_requestAccounts' }) as string[];
+      const address = accounts[0];
+      
+      // Get balance
+      const balanceHex = await provider.request({ 
+        method: 'eth_getBalance',
+        params: [address, 'latest']
+      }) as string;
+      const balance = parseInt(balanceHex, 16) / 1e18; // Convert from wei to ETH
+      
+      setWalletInfo({
+        address,
+        balance: `${balance.toFixed(4)} ETH`,
+        organizations: [],
+        socials: {},
+        smartWallet
+      });
+      
+      // Ensure we stay on or return to the profile view after successful connection
+      setCurrentView('profile');
+    } catch (error) {
+      console.error('Error connecting smart wallet:', error);
+      setSmartWalletError(error instanceof Error ? error.message : 'Failed to connect smart wallet');
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   return (
@@ -1272,13 +1382,29 @@ function App() {
                 {!walletInfo ? (
                   <div className="p-4 border dark:border-gray-700 rounded-lg">
                     <h2 className="text-lg font-medium mb-4">Login</h2>
+                    {smartWalletError && (
+                      <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded text-sm">
+                        {smartWalletError}
+                      </div>
+                    )}
                     <button
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      onClick={handleConnectWallet}
+                      disabled={isConnecting}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                      Connect Wallet
+                      {isConnecting ? (
+                        <>
+                          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Connecting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                          Connect Smart Wallet
+                        </>
+                      )}
                     </button>
                   </div>
                 ) : (
