@@ -1,3 +1,13 @@
-# WXT + React
+# Frontend
 
-This template should help get you started developing with React in WXT.
+WXT + React
+
+npm install
+npm run dev
+
+TODOs
+[] Signup screen
+[] Wallet Creation
+[] Wallet Connect
+
+[] 
