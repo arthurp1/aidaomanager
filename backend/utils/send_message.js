@@ -1,4 +1,4 @@
-const { client } = require('../tools/discord');
+import { client } from '../tools/discord.js';
 
 /**
  * Sends a direct message to a specific Discord user
@@ -74,7 +74,7 @@ async function sendChannelMessage(channelId, message) {
     }
 }
 
-module.exports = {
+export {
     sendDirectMessage,
     sendChannelMessage
 };

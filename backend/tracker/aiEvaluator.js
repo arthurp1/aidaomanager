@@ -1,7 +1,15 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const dotenv = require('dotenv');
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-dotenv.config();
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Configure dotenv to look for .env in the correct location
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 class AIEvaluator {
     constructor() {
@@ -54,16 +62,18 @@ class AIEvaluator {
         Provide an evaluation in the following JSON format:
         {
             "level": "Excellent/Ok/Poor",
-            "message": "An encouraging message that doesn't reveal metrics",
+            "message": "An encouraging one-line private message with exactly one emoji, that doesn't reveal metrics",
             "proof": "Brief justification without exposing raw data"
         }
         
         Guidelines:
         - Focus on patterns and trends, not raw numbers
         - Be encouraging and constructive
-        - Suggest specific improvements for "Poor" ratings
-        - Celebrate achievements for "Excellent" ratings
-        - Keep messages concise and actionable
+        - Give encouragement for "Poor" ratings
+        - Celebrate for "Excellent" ratings
+        - Keep the message concise and actionable as a private one-line message from a manager/other member of the team to a team member
+        - Include exactly one emoji, preferably at the end, to add a friendly tone
+        - Ensure the message sounds natural, like a kind manager giving a nudge to be more active
         `;
     }
 
@@ -90,4 +100,6 @@ class AIEvaluator {
     }
 }
 
-module.exports = new AIEvaluator(); 
+// Create and export a singleton instance
+const aiEvaluator = new AIEvaluator();
+export default aiEvaluator; 

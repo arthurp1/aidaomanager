@@ -1,14 +1,20 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
-const readline = require('readline');
-const fs = require('fs').promises;
-const path = require('path');
-const { fetchAndStoreMessages, client } = require('./tools/discord');
-const { filterDiscordData } = require('./utils/filter_discord_data');
-const { sendDirectMessage, sendChannelMessage } = require('./utils/send_message');
-const taskTracker = require('./tracker/taskTracker');
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import { v4 as uuidv4 } from 'uuid';
+import readline from 'readline';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { fetchAndStoreMessages, client } from './tools/discord.js';
+import { filterDiscordData } from './utils/filter_discord_data.js';
+import { sendDirectMessage, sendChannelMessage } from './utils/send_message.js';
+import taskTracker from './tracker/taskTracker.js';
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -35,6 +41,9 @@ let tasks = [];
 let messages = [];
 let toolData = [];
 let mockData = null;
+
+// Use the taskTracker instance directly since it's already instantiated in the module
+const tracker = taskTracker;
 
 // File operations
 async function ensureDataDir() {
@@ -326,7 +335,7 @@ async function handleCommand(command = '1') {
 
     // Add new command handlers for tracking
     if (commandName === 'tracking-status') {
-        const status = taskTracker.getStatus();
+        const status = tracker.getStatus();
         const tasks = JSON.parse(await fs.readFile(path.join(__dirname, 'data', 'tasks.json'), 'utf8'));
         
         console.log('\n=== System Status ===');
@@ -354,14 +363,14 @@ async function handleCommand(command = '1') {
     }
 
     if (commandName === 'tracking-toggle') {
-        const currentStatus = taskTracker.getStatus();
+        const currentStatus = tracker.getStatus();
         const newState = !currentStatus.isTracking;
         
         if (newState) {
-            await taskTracker.start();
+            await tracker.start();
             console.log('Task tracking started');
         } else {
-            await taskTracker.stop();
+            await tracker.stop();
             console.log('Task tracking stopped');
         }
         return;
@@ -610,7 +619,7 @@ app.get('/filterDiscord', async (req, res) => {
 // Task Tracking Endpoints
 app.get('/api/task-tracking/status', async (req, res) => {
     try {
-        const status = taskTracker.getStatus();
+        const status = tracker.getStatus();
         res.json(status);
     } catch (error) {
         console.error('Error getting task tracking status:', error);
@@ -618,21 +627,22 @@ app.get('/api/task-tracking/status', async (req, res) => {
     }
 });
 
-app.post('/api/task-tracking/toggle', async (req, res) => {
-    try {
-        const { enable } = req.body;
-        
-        if (enable) {
-            await taskTracker.start();
-            res.json({ status: 'Task tracking started' });
-        } else {
-            await taskTracker.stop();
-            res.json({ status: 'Task tracking stopped' });
-        }
-    } catch (error) {
-        console.error('Error toggling task tracking:', error);
-        res.status(500).json({ error: 'Failed to toggle task tracking' });
+app.post('/tracking-toggle', async (req, res) => {
+    const { action } = req.body;
+    
+    if (action === 'start') {
+        await tracker.start();
+        res.json({ status: 'success', message: 'Tracking started', isTracking: true });
+    } else if (action === 'stop') {
+        await tracker.stop();
+        res.json({ status: 'success', message: 'Tracking stopped', isTracking: false });
+    } else {
+        res.status(400).json({ status: 'error', message: 'Invalid action. Use "start" or "stop".' });
     }
+});
+
+app.get('/tracking-status', (req, res) => {
+    res.json(tracker.getStatus());
 });
 
 // Error handling middleware
@@ -646,6 +656,5 @@ app.listen(port, async () => {
     console.log(`Server is running on port ${port}`);
     await ensureDataDir();
     await loadData();
-    await taskTracker.start(); // Start task tracking by default
     startCLI();
 });

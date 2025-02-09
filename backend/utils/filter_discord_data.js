@@ -1,19 +1,39 @@
-const fs = require('fs').promises;
-const path = require('path');
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-// This function filters and aggregates Discord data from the JSON file
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const DISCORD_DATA_FILE = path.join(__dirname, '..', 'data', 'discord.json');
+const FILTERED_DATA_FILE = path.join(__dirname, '..', 'data', 'discord_filtered.json');
+
+function formatDateTime(date) {
+    const d = date || new Date();
+    return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
+// This function filters and aggregates Discord data from JSON
 // and computes metrics per user including activity, responsiveness, and engagement.
 async function filterDiscordData() {
-  const messagesPath = path.join(__dirname, '..', 'data', 'discord.json');
-  let data;
+  let messages;
   try {
-    data = await fs.readFile(messagesPath, 'utf8');
+    messages = JSON.parse(await fs.readFile(DISCORD_DATA_FILE, 'utf8'));
   } catch (err) {
-    console.error('Error reading discord messages file:', err);
+    console.error('Error reading discord messages from JSON:', err);
     return [];
   }
 
-  const messages = JSON.parse(data);
   // Sort messages chronologically
   messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -76,7 +96,6 @@ async function filterDiscordData() {
   });
 
   // Second pass: Compute response times for mentions
-  // For each message, for every mention, find the next message from that mentioned user.
   messages.forEach((msg, index) => {
     const mentionRegex = /<@(?:(?:!))?(\d+)>/g;
     let match;
@@ -109,16 +128,15 @@ async function filterDiscordData() {
     aggregatedData.push(m);
   });
 
-  // Store the filtered data to backend/data/discord_filtered.json
-  const outputPath = path.join(__dirname, '..', 'data', 'discord_filtered.json');
+  // Store the filtered data to JSON
   try {
-    await fs.writeFile(outputPath, JSON.stringify(aggregatedData, null, 2), 'utf8');
-    console.log('Filtered data stored in', outputPath);
+    await fs.writeFile(FILTERED_DATA_FILE, JSON.stringify(aggregatedData, null, 2));
+    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in ${FILTERED_DATA_FILE}`);
   } catch (err) {
-    console.error('Error writing filtered discord data:', err);
+    console.error('Error writing filtered discord data to JSON:', err);
   }
 
   return aggregatedData;
 }
 
-module.exports = { filterDiscordData };
+export { filterDiscordData };

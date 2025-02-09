@@ -1,7 +1,16 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-const fs = require('fs').promises;
-const path = require('path');
-require('dotenv').config();
+import { Client, GatewayIntentBits } from 'discord.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import dotenv from 'dotenv';
+
+// Initialize dotenv
+dotenv.config();
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const MESSAGES_DATA_FILE = path.join(DATA_DIR, 'discord.json');
@@ -34,7 +43,9 @@ async function loadExistingMessages() {
 }
 
 async function saveMessages(messages) {
+    await ensureDataDir();
     await fs.writeFile(MESSAGES_DATA_FILE, JSON.stringify(messages, null, 2));
+    return { success: true };
 }
 
 async function fetchMessageReactions(message) {
@@ -62,6 +73,19 @@ async function fetchMessageReactions(message) {
     return reactions;
 }
 
+function formatDateTime(date) {
+    const d = date || new Date();
+    return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
 async function fetchAndStoreMessages() {
     try {
         // Get existing messages
@@ -84,7 +108,7 @@ async function fetchAndStoreMessages() {
 
         if (!generalChannel) {
             console.error('No general channel found');
-            return;
+            return [];
         }
 
         // Fetch messages
@@ -127,9 +151,13 @@ async function fetchAndStoreMessages() {
 
         // Combine and save messages
         const allMessages = [...existingMessages, ...messages];
-        await saveMessages(allMessages);
+        const saveResult = await saveMessages(allMessages);
         
-        console.log('Messages fetched and saved successfully');
+        if (!saveResult.success) {
+            throw new Error('Failed to save messages to JSON file');
+        }
+        
+        console.log(`[${new Date().toLocaleString()}] Discord data fetched and stored in ${MESSAGES_DATA_FILE}`);
 
         return allMessages;
     } catch (error) {
@@ -139,7 +167,7 @@ async function fetchAndStoreMessages() {
 }
 
 // Export the fetch function for CLI use
-module.exports = {
+export {
     fetchAndStoreMessages,
     client
 };

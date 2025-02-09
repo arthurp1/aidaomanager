@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Discord Messages",
+  "description": "Schema for Discord message data with encrypted content",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Unique identifier for the message"
+      },
+      "content": {
+        "type": "string",
+        "description": "The message content"
+      },
+      "authorId": {
+        "type": "string",
+        "description": "Unique identifier for the message author"
+      },
+      "authorUsername": {
+        "type": "string",
+        "description": "Username of the message author"
+      },
+      "channelId": {
+        "type": "string",
+        "description": "Unique identifier for the channel"
+      },
+      "channelName": {
+        "type": "string",
+        "description": "Name of the channel"
+      },
+      "timestamp": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Timestamp when the message was sent"
+      },
+      "editedTimestamp": {
+        "type": ["string", "null"],
+        "format": "date-time",
+        "description": "Timestamp when the message was last edited, if applicable"
+      },
+      "attachments": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "embeds": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "reactions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "emoji": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": ["string", "null"]
+                },
+                "animated": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["name", "id", "animated"]
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "users": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "type": "string"
+                  }
+                },
+                "required": ["userId", "username"]
+              }
+            }
+          },
+          "required": ["emoji", "count", "users"]
+        }
+      }
+    },
+    "required": [
+      "id",
+      "content",
+      "authorId",
+      "authorUsername",
+      "channelId",
+      "channelName",
+      "timestamp",
+      "editedTimestamp",
+      "attachments",
+      "embeds",
+      "reactions"
+    ]
+  }
+} 
