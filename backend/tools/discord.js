@@ -157,7 +157,18 @@ async function fetchAndStoreMessages() {
                         editedTimestamp: message.editedAt?.toISOString() || null,
                         attachments: Array.from(message.attachments.values()).map(a => a.url),
                         embeds: message.embeds.map(e => e.data),
-                        reactions: reactions
+                        reactions: reactions.map(reaction => ({
+                            emoji: {
+                                name: reaction.emoji.name,
+                                id: reaction.emoji.id,
+                                animated: reaction.emoji.animated
+                            },
+                            count: reaction.count,
+                            users: reaction.users.map(user => ({
+                                userId: user.id,
+                                username: user.username
+                            }))
+                        }))
                     });
                     existingIds.add(message.id);
                 }
