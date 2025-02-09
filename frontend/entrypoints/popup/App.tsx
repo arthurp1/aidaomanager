@@ -9,7 +9,8 @@ import {
   ClipboardDocumentListIcon,
   SunIcon,
   MoonIcon,
-  PaperAirplaneIcon
+  PaperAirplaneIcon,
+  ClipboardDocumentIcon
 } from '@heroicons/react/24/outline';
 import './App.css';
 import { db } from './db';
@@ -66,6 +67,32 @@ const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chr
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
+// Add new function after other interface definitions and before the App function
+interface UserData {
+  wallet_address: string;
+  eth_balance: string;
+  usd_balance: string;
+  chain_id: number;
+  connected_accounts: {
+    discord?: string;
+    telegram?: string;
+    github?: string;
+    email?: string;
+  };
+  organizations: Organization[];
+  last_updated: string;
+}
+
+const shortenAddress = (address: string) => {
+  if (!address) return '';
+  return `${address.slice(0, 7)}...${address.slice(-5)}`;
+};
+
+// Add type for background response
+interface BackgroundResponse {
+  currentUrl?: string;
+}
+
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [subtasks, setSubtasks] = useState<SubTask[]>([]);
@@ -73,7 +100,11 @@ function App() {
     id: 'everyone',
     name: 'Everyone',
     createdAt: new Date(),
-    tools: []
+    tools: [],
+    timeTracking: {
+      enabled: false,
+      isAITracking: false
+    }
   }]);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [selectedRole, setSelectedRole] = useState<string>('everyone');
@@ -108,6 +139,18 @@ function App() {
   const [devMode, setDevMode] = useState<boolean>(true); // Dev mode enabled by default
   const aiAssistantRef = useRef<AIAssistantHandle>(null);
   const [tools, setTools] = useState<Tool[]>([]);
+  const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(false);
+  const [isAITimeTracking, setIsAITimeTracking] = useState(false);
+  const [hourlyRate, setHourlyRate] = useState<number | undefined>();
+  const [productivityBonus, setProductivityBonus] = useState<5 | 10 | 15 | undefined>();
+  const [arbitrageEnabled, setArbitrageEnabled] = useState(false);
+  const [revaluationDeadline, setRevaluationDeadline] = useState<Date | undefined>();
+  const [overtimeEnabled, setOvertimeEnabled] = useState(false);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [qualityTrackingEnabled, setQualityTrackingEnabled] = useState(false);
+  const [codeReviewEnabled, setCodeReviewEnabled] = useState(false);
+  const [testCoverageEnabled, setTestCoverageEnabled] = useState(false);
+  const [qualityStandard, setQualityStandard] = useState<'basic' | 'advanced' | 'expert'>('basic');
 
   // Initialize database and load data
   useEffect(() => {
@@ -140,7 +183,11 @@ function App() {
             id: 'everyone',
             name: 'Everyone',
             createdAt: new Date(),
-            tools: []
+            tools: [],
+            timeTracking: {
+              enabled: false,
+              isAITracking: false
+            }
           });
         }
         setRoles(storedRoles);
@@ -322,6 +369,10 @@ function App() {
       name: newRoleName,
       createdAt: new Date(),
       tools: selectedTools,
+      timeTracking: {
+        enabled: false,
+        isAITracking: false
+      }
     };
 
     setRoles(prev => [...prev, newRole]);
@@ -336,7 +387,25 @@ function App() {
     if (!editingRole || !newRoleName.trim()) return;
 
     setRoles(prev => prev.map(r => 
-      r.id === editingRole.id ? { ...r, name: newRoleName, tools: selectedTools } : r
+      r.id === editingRole.id ? { 
+        ...r, 
+        name: newRoleName, 
+        tools: selectedTools,
+        timeTracking: {
+          ...r.timeTracking,
+          enabled: timeTrackingEnabled,
+          isAITracking: isAITimeTracking,
+          hourlyRate: hourlyRate,
+          productivityBonus: productivityBonus,
+          arbitrage: {
+            enabled: arbitrageEnabled,
+            revaluationDeadline: revaluationDeadline
+          },
+          overtime: {
+            enabled: overtimeEnabled
+          }
+        }
+      } : r
     ));
     setNewRoleName('');
     setSelectedTools([]);
@@ -362,85 +431,56 @@ function App() {
 
   const handlePlayTask = (task: Task, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!isChromeExtension) return; // Don't run in development
 
-    const handleError = (error: any) => {
-      console.error('Timer operation failed:', error);
-      // Fallback to local timer if background script is not available
-      if (activeTask?.id === task.id) {
-        // Save tracked time before stopping
-        const finalTrackedTime = (task.trackedTime || 0) + (elapsedTime / 3600); // Convert seconds to hours
-        setTasks(prev => prev.map(t => 
-          t.id === task.id ? { ...t, trackedTime: finalTrackedTime } : t
-        ));
-        setActiveTask(null);
-        // Don't reset elapsed time here
-      } else {
-        setActiveTask(task);
-        // Keep elapsed time if it's the same task
-        if (task.id !== activeTask?.id) {
-          setElapsedTime(0);
-        }
-      }
-    };
-
+    // If clicking the same task that's active, stop it
     if (activeTask?.id === task.id) {
+      // Save tracked time before stopping
+      const finalTrackedTime = (task.trackedTime || 0) + (elapsedTime / 3600); // Convert seconds to hours
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, trackedTime: finalTrackedTime } : t
+      ));
+      
       // Stop tracking
-      try {
-        chrome.runtime.sendMessage({ type: 'STOP_TIMER' }, (response) => {
-          if (chrome.runtime.lastError) {
-            handleError(chrome.runtime.lastError);
-            return;
-          }
-          if (response?.success) {
-            // Save tracked time before stopping
-            const finalTrackedTime = (task.trackedTime || 0) + (elapsedTime / 3600); // Convert seconds to hours
-            setTasks(prev => prev.map(t => 
-              t.id === task.id ? { ...t, trackedTime: finalTrackedTime } : t
-            ));
-            setActiveTask(null);
-            // Keep elapsed time in state
-            if (response.stoppedTime !== undefined) {
-              setElapsedTime(response.stoppedTime);
-            }
-          } else {
-            console.error('Failed to stop timer:', response?.error);
-          }
-        });
-      } catch (error) {
-        handleError(error);
+      setActiveTask(null);
+      setElapsedTime(0);
+      
+      // Update badge text if in extension context
+      if (typeof chrome !== 'undefined' && chrome.action) {
+        chrome.action.setBadgeText({ text: '' });
+      }
+      
+      // Save state if in extension context
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.set({ 
+          activeTask: null,
+          elapsedTime: 0
+        }).catch(console.error);
       }
     } else {
+      // If there's an active task, save its time before switching
+      if (activeTask) {
+        const finalTrackedTime = (activeTask.trackedTime || 0) + (elapsedTime / 3600);
+        setTasks(prev => prev.map(t => 
+          t.id === activeTask.id ? { ...t, trackedTime: finalTrackedTime } : t
+        ));
+      }
+      
       // Start tracking new task
-      const taskForStorage = {
-        ...task,
-        createdAt: task.createdAt.toISOString()
-      };
-      try {
-        chrome.runtime.sendMessage({ 
-          type: 'START_TIMER',
-          task: taskForStorage,
-          elapsedTime: task.id === activeTask?.id ? elapsedTime : 0
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            handleError(chrome.runtime.lastError);
-            return;
-          }
-          if (response?.success) {
-            setActiveTask(task);
-            // Keep elapsed time if it's the same task
-            if (task.id !== activeTask?.id) {
-              setElapsedTime(0);
-            }
-            console.log('Timer started successfully');
-          } else {
-            console.error('Failed to start timer:', response?.error);
-          }
-        });
-      } catch (error) {
-        handleError(error);
+      setActiveTask(task);
+      setElapsedTime(0);
+      
+      // Save state if in extension context
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.set({ 
+          activeTask: {
+            ...task,
+            createdAt: task.createdAt.toISOString()
+          },
+          elapsedTime: 0
+        }).catch(console.error);
       }
     }
+    
     // Collapse the task in the backlog when it's played
     setTasks(prev => prev.map(t => 
       t.id === task.id ? { ...t, isCollapsed: true } : t
@@ -459,159 +499,61 @@ function App() {
 
   // Update URL effect
   useEffect(() => {
-    if (!isChromeExtension || !chrome?.runtime) {
-      console.log('Chrome extension environment not available:', { isChromeExtension, hasRuntime: !!chrome?.runtime });
-      return;
-    }
+    if (!isChromeExtension) return;
 
     const getCurrentUrl = async () => {
-      try {
-        console.log('Requesting URL from background script...');
-        // Get URL from background script
-        chrome.runtime.sendMessage({ type: 'getCurrentUrl' }, async (response) => {
-          if (chrome.runtime.lastError) {
-            console.error('Error getting URL from background:', chrome.runtime.lastError);
-            return;
-          }
+      const response = await new Promise<BackgroundResponse>((resolve) => {
+        chrome.runtime.sendMessage({ type: 'getCurrentUrl' }, resolve);
+      });
 
-          console.log('Received response from background:', response);
-
-          if (response?.currentUrl) {
-            console.log('Setting current URL in popup:', response.currentUrl);
-            setCurrentUrl(response.currentUrl);
-
-            // Load stored state
-            const storedData = await chrome.storage.local.get([
-              'activeTask',
-              'elapsedTime'
-            ]);
-
-            console.log('Loaded stored state:', storedData);
-
-            // Check if the current URL matches any task's tools
-            const matchingTask = tasks.find(task => 
-              task.tools.some(tool => {
-                try {
-                  const currentHostname = new URL(response.currentUrl).hostname;
-                  const toolHostname = tool.toLowerCase();
-                  const matches = currentHostname.includes(toolHostname);
-                  console.log('URL matching:', { currentHostname, toolHostname, matches });
-                  return matches;
-                } catch (error) {
-                  console.error('Error matching URL:', error);
-                  return false;
-                }
-              })
-            );
-
-            if (matchingTask) {
-              console.log('Found matching task:', matchingTask);
-            }
-
-            // If we have a stored active task, restore it
-            if (storedData.activeTask) {
-              const storedTask = {
-                ...storedData.activeTask,
-                createdAt: new Date(storedData.activeTask.createdAt)
-              };
-              setActiveTask(storedTask);
-              setElapsedTime(storedData.elapsedTime || 0);
-              console.log('Restored active task:', storedTask);
-            }
-            // Otherwise, if we found a matching task and no task is currently active
-            else if (matchingTask && (!activeTask || activeTask.id !== matchingTask.id)) {
-              console.log('Auto-activating task:', matchingTask.title);
-              setActiveTask(matchingTask);
-              setElapsedTime(0);
-            }
-          } else {
-            console.log('No URL received from background');
-          }
-        });
-      } catch (error) {
-        console.error('Error in getCurrentUrl:', error);
+      if (response?.currentUrl) {
+        setCurrentUrl(response.currentUrl);
       }
     };
 
-    console.log('Setting up URL polling');
+    // Initial URL fetch
     getCurrentUrl();
-    // Check URL periodically for changes
+    
+    // Poll for URL changes
     const intervalId = setInterval(getCurrentUrl, 1000);
 
-    return () => {
-      console.log('Cleaning up URL polling');
-      clearInterval(intervalId);
-    };
-  }, [tasks, activeTask, elapsedTime]);
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Update timer effect to handle connection errors
   useEffect(() => {
-    if (!isChromeExtension) return;
+    if (!activeTask) return;
 
-    let localTimer: NodeJS.Timeout | null = null;
-    const startLocalTimer = () => {
-      if (localTimer) clearInterval(localTimer);
-      localTimer = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    };
-
-    const stopLocalTimer = () => {
-      if (localTimer) {
-        clearInterval(localTimer);
-        localTimer = null;
-      }
-    };
-
-    // Try to get state from background script
-    try {
-      chrome.runtime.sendMessage({ type: 'GET_TIMER_STATE' }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('Background script not available, using local timer');
-          if (activeTask) startLocalTimer();
-          return;
-        }
-
-        if (response?.activeTask) {
-          setActiveTask({
-            ...response.activeTask,
-            createdAt: new Date(response.activeTask.createdAt)
-          });
-          setElapsedTime(response.elapsedTime);
-        }
-      });
-
-      // Listen for timer updates from background script
-      const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-        if (changes.elapsedTime) {
-          setElapsedTime(changes.elapsedTime.newValue);
-        }
-        if (changes.activeTask) {
-          const newActiveTask = changes.activeTask.newValue;
-          if (newActiveTask) {
-            setActiveTask({
-              ...newActiveTask,
-              createdAt: new Date(newActiveTask.createdAt)
-            });
-          } else {
-            setActiveTask(null);
+    // Start the timer
+    const timer = setInterval(() => {
+      setElapsedTime(prev => {
+        const newTime = prev + 1;
+        // Update badge text if in extension context
+        if (typeof chrome !== 'undefined' && chrome.action) {
+          const minutes = Math.floor(newTime / 60);
+          const hours = Math.floor(minutes / 60);
+          const displayTime = hours > 0 
+            ? `${hours}:${String(minutes % 60).padStart(2, '0')}`
+            : `${minutes}:${String(newTime % 60).padStart(2, '0')}`;
+          chrome.action.setBadgeText({ text: displayTime });
+          chrome.action.setBadgeBackgroundColor({ color: '#A8ACE0' });
+          
+          // Save elapsed time if in extension context
+          if (chrome.storage) {
+            chrome.storage.local.set({ elapsedTime: newTime }).catch(console.error);
           }
         }
-      };
+        return newTime; // Always return the new time, regardless of Chrome extension context
+      });
+    }, 1000);
 
-      if (chrome.storage?.onChanged) {
-        chrome.storage.onChanged.addListener(handleStorageChange);
+    // Cleanup
         return () => {
-          chrome.storage.onChanged.removeListener(handleStorageChange);
-          stopLocalTimer();
-        };
+      clearInterval(timer);
+      if (typeof chrome !== 'undefined' && chrome.action) {
+        chrome.action.setBadgeText({ text: '' });
       }
-    } catch (error) {
-      console.warn('Error setting up timer:', error);
-      if (activeTask) startLocalTimer();
-    }
-
-    return () => stopLocalTimer();
+    };
   }, [activeTask]);
 
   // Add function to format time
@@ -852,7 +794,22 @@ function App() {
     }
   };
 
-  // Update handleConnectWallet to use the new fetchBalance function
+  // Add new function inside App function, before handleConnectWallet
+  const fetchUserData = async (address: string) => {
+    try {
+      const response = await fetch(chrome.runtime.getURL('users.json'));
+      const data = await response.json();
+      const user = data.users.find((u: UserData) => 
+        u.wallet_address.toLowerCase() === address.toLowerCase()
+      );
+      return user || null;
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      return null;
+    }
+  };
+
+  // Replace the handleConnectWallet function
   const handleConnectWallet = async () => {
     setIsConnecting(true);
     setSmartWalletError(null);
@@ -877,20 +834,35 @@ function App() {
         try {
           await provider.request({
             method: 'wallet_switchEthereumChain',
-            params: [{ chainId: '0xaa36a7' }], // 11155111 in hex
+            params: [{ chainId: '0xaa36a7' }],
           });
-          // Get updated chain ID
           const updatedChainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
           chainId = parseInt(updatedChainIdHex, 16);
         } catch (error) {
           console.error('Error switching to Sepolia:', error);
-          // Continue with current chain if switch fails
         }
       }
-      
-      // Get balance using the new helper function
-      const balance = await fetchBalance(provider, address);
-      
+
+      // Fetch user data from users.json
+      const user = await fetchUserData(address);
+      setUserData(user);
+
+      // If user data exists, use it to set wallet info
+      if (user) {
+        setWalletInfo({
+          address,
+          balance: `${user.eth_balance} ETH (${user.usd_balance} USD)`,
+          organizations: user.organizations || [],
+          socials: user.connected_accounts || {},
+          smartWallet,
+          chainId: user.chain_id
+        });
+        
+        // Initialize social inputs with existing data
+        setSocialInputs(user.connected_accounts || {});
+      } else {
+        // If no user data, use blockchain data
+        const balance = await fetchBalance(provider, address);
       setWalletInfo({
         address,
         balance: `${balance} ETH`,
@@ -899,8 +871,8 @@ function App() {
         smartWallet,
         chainId
       });
+      }
       
-      // Ensure we stay on or return to the profile view after successful connection
       setCurrentView('profile');
     } catch (error) {
       console.error('Error connecting smart wallet:', error);
@@ -910,7 +882,7 @@ function App() {
     }
   };
 
-  // Update initializeSmartWallet to use the new fetchBalance function
+  // Update initializeSmartWallet useEffect
   useEffect(() => {
     const initializeSmartWallet = async () => {
       try {
@@ -918,22 +890,34 @@ function App() {
           appName: 'AIDAO Manager'
         });
         
-        // Get the provider
         const provider = smartWallet.getProvider();
         
-        // Check if we have a connected account
         try {
           const accounts = await provider.request({ method: 'eth_accounts' }) as string[];
           if (accounts && accounts.length > 0) {
             const address = accounts[0];
             
-            // Get current chain ID
             const chainIdHex = await provider.request({ method: 'eth_chainId' }) as string;
             let chainId = parseInt(chainIdHex, 16);
             
-            // Get balance using the new helper function
-            const balance = await fetchBalance(provider, address);
-            
+            // Fetch user data from users.json
+            const user = await fetchUserData(address);
+            setUserData(user);
+
+            if (user) {
+              setWalletInfo({
+                address,
+                balance: `${user.eth_balance} ETH (${user.usd_balance} USD)`,
+                organizations: user.organizations || [],
+                socials: user.connected_accounts || {},
+                smartWallet,
+                chainId: user.chain_id
+              });
+              
+              // Initialize social inputs with existing data
+              setSocialInputs(user.connected_accounts || {});
+            } else {
+              const balance = await fetchBalance(provider, address);
             setWalletInfo({
               address,
               balance: `${balance} ETH`,
@@ -942,6 +926,7 @@ function App() {
               smartWallet,
               chainId
             });
+            }
           }
         } catch (error) {
           console.error('Error checking wallet connection:', error);
@@ -996,11 +981,11 @@ function App() {
   return (
     <div 
       ref={appRef}
-      className="w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col rounded-lg"
+      className="corners w-[400px] min-h-[600px] bg-gray-100 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors shadow-lg flex flex-col rounded-lg"
     >
       {/* Dev Mode URL Display */}
       {devMode && (
-        <div className="sticky top-0 z-20 bg-gray-50 dark:bg-dark-surface border-b dark:border-gray-700">
+        <div className="sticky top-0 z-50 bg-gray-50 dark:bg-dark-surface border-b dark:border-gray-700">
           <div className="px-3 py-1">
             <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
               {currentUrl ? (
@@ -1020,70 +1005,38 @@ function App() {
         </div>
       )}
 
+      {/* Timer Display - Only shown when a task is active */}
+        {activeTask && (
+        <div className="sticky top-0 z-40 bg-white dark:bg-dark-surface border-b dark:border-gray-700">
+          <div className="px-3 py-2 flex items-center justify-between">
+            <div className="text-sm font-mono text-gray-500 dark:text-gray-400">
+              {formatTime(elapsedTime)}
+            </div>
+                  <button
+              onClick={() => {
+                // Save tracked time before stopping
+                const finalTrackedTime = (activeTask.trackedTime || 0) + (elapsedTime / 3600);
+                setTasks(prev => prev.map(t => 
+                  t.id === activeTask.id ? { ...t, trackedTime: finalTrackedTime } : t
+                ));
+                setActiveTask(null);
+              }}
+                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                  >
+                    ■
+                  </button>
+            </div>
+          </div>
+        )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Tasks View */}
         {currentView === 'tasks' && (
           <>
-        {/* Active Task Section */}
-        {activeTask && (
-          <div className="bg-white dark:bg-dark-surface border-b dark:border-gray-700">
-            <div className="px-3 py-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveTask(null)}
-                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                  >
-                    ■
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-medium">{activeTask.title}</h2>
-                    <div className="flex items-center gap-1">
-                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
-                        Manual tracking
-                      </span>
-                      <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-                        {formatTime(elapsedTime)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {formatTrackedTime(activeTask.trackedTime)}/{activeTask.estimatedTime}h
-                </span>
-              </div>
-              <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500 mb-2">
-                {activeTask.tools.map(tool => (
-                  <a
-                    key={tool}
-                    href={`https://${tool}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    {tool}
-                  </a>
-                ))}
-              </div>
-              {/* Subtasks for active task */}
-              <TaskTable
-                tasks={subtasks.filter(subtask => subtask.taskId === activeTask.id)}
-                onCreateTask={(newSubtask) => handleCreateSubtask({ 
-                  ...newSubtask, 
-                  roleId: activeTask.roleId,
-                  taskId: activeTask.id 
-                })}
-                onToggleComplete={handleToggleSubtaskComplete}
-                onDeleteTask={handleDeleteSubtask}
-              />
-            </div>
-          </div>
-        )}
-
             {/* Role Selection */}
         <div 
-              className="sticky top-0 z-10 px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-hidden relative bg-white dark:bg-dark-surface"
+              className="sticky top-0 z-30 px-3 py-2 border-b dark:border-gray-700 flex gap-2 overflow-hidden relative bg-white dark:bg-dark-surface"
           onMouseEnter={() => setIsHoveringRoles(true)}
           onMouseLeave={() => setIsHoveringRoles(false)}
         >
@@ -1097,8 +1050,8 @@ function App() {
               }}
               className={`px-3 py-1 text-sm rounded whitespace-nowrap ${
                 selectedRole === role.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 dark:bg-dark-surface hover:bg-gray-300 dark:hover:bg-dark-hover'
+                      ? 'bg-[#EA627A] text-white'
+                      : 'bg-gray-200 dark:bg-dark-surface hover:bg-[#EE8398] hover:text-white dark:hover:bg-[#EE8398]'
               }`}
             >
               {role.name}
@@ -1111,7 +1064,7 @@ function App() {
                 setNewRoleName('');
                 setIsRoleModalOpen(true);
               }}
-              className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500 flex items-center gap-1"
+                  className="px-3 py-1 text-sm rounded whitespace-nowrap text-gray-500 dark:text-gray-400 hover:text-[#EA627A] dark:hover:text-[#EA627A] flex items-center gap-1"
             >
               <span className="text-lg leading-none">+</span>
               <span>Role</span>
@@ -1130,43 +1083,59 @@ function App() {
                 onMouseLeave={() => setIsHoveringTaskList(false)}
               >
                 {getFilteredTasks(selectedRole).map(task => (
-                  <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50 last:border-b-0">
+                  <div key={task.id} className="border-b border-gray-100 dark:border-gray-800/50">
                     {/* Task Header */}
                     <div 
                       className="group flex items-center px-3 py-2 hover:bg-gray-50/50 dark:hover:bg-dark-hover/50 cursor-pointer"
                       onClick={() => toggleTaskCollapse(task.id)}
                     >
+                          {/* Play button */}
                       <button 
-                        className="opacity-0 group-hover:opacity-100 mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
+                            className="mr-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
                         onClick={(e) => handlePlayTask(task, e)}
                       >
                         {activeTask?.id === task.id ? '■' : '▶'}
                       </button>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{task.title}</span>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {formatTrackedTime(task.trackedTime)}/{task.estimatedTime}h
-                          </span>
-                        </div>
-                        <div className="flex gap-2 text-xs text-gray-400 dark:text-gray-500">
-                          {task.tools.map(tool => (
-                            <a
-                              key={tool}
-                              href={`https://${tool}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="hover:text-gray-600 dark:hover:text-gray-300"
-                            >
-                              {tool}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
+                          
+                          <div className="flex-1 min-w-0 flex items-center gap-2">
+                            <div className="text-sm dark:text-gray-200 text-left truncate">{task.title}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {activeTask?.id === task.id ? (
+                                `${Math.floor(elapsedTime / 3600)}:${String(Math.floor((elapsedTime % 3600) / 60)).padStart(2, '0')}`
+                              ) : (
+                                `${Math.floor(task.trackedTime)}:${String(Math.floor((task.trackedTime % 1) * 60)).padStart(2, '0')}`
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Tool icons */}
+                            <div className="flex -space-x-1 gap-1">
+                              {task.tools.map(toolUrl => {
+                                const tool = tools.find(t => t.url === toolUrl);
+                                if (!tool) return null;
+                                return (
+                                  <a
+                                    key={tool.url}
+                                    href={`https://${tool.url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={tool.name}
+                                    className="w-5 h-5 rounded-full overflow-hidden"
+                                  >
+                                    <img 
+                                      src={tool.logomark} 
+                                      alt={tool.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          </div>
                     </div>
 
-                    {/* Tabs and Content */}
+                        {/* Task Content */}
                     {!task.isCollapsed && (
                       <div>
                         {/* Tabs - removed border-t and adjusted text size */}
@@ -1309,7 +1278,7 @@ function App() {
                     <button
                       onClick={handleConnectWallet}
                       disabled={isConnecting}
-                      className="w-full px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full px-3 py-1.5 bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] transition-colors flex items-center justify-center gap-2 disabled:bg-[#D7DAFA]"
                     >
                       {isConnecting ? (
                         <>
@@ -1342,7 +1311,19 @@ function App() {
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500 dark:text-gray-400">Address:</span>
-                          <span className="font-mono">{walletInfo.address}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono">{shortenAddress(walletInfo.address)}</span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(walletInfo.address);
+                                // Optional: Add a toast notification here
+                              }}
+                              className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                              title="Copy address"
+                            >
+                              <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500 dark:text-gray-400">
@@ -1392,7 +1373,7 @@ function App() {
                           ))}
                           <button
                             onClick={handleSaveSocials}
-                            className="w-full mt-2 px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                            className="w-full mt-2 px-2 py-1 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6]"
                           >
                             Save
                           </button>
@@ -1420,7 +1401,7 @@ function App() {
                         <h2 className="text-base font-medium">Organizations</h2>
                         <button
                           onClick={() => setIsCreateOrgModalOpen(true)}
-                          className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                          className="px-2 py-1 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6]"
                         >
                           Create
                         </button>
@@ -1467,7 +1448,7 @@ function App() {
                           <button
                             onClick={handleJoinOrg}
                             disabled={!inviteCode.trim()}
-                            className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-2 py-1 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] disabled:bg-[#D7DAFA] disabled:cursor-not-allowed"
                           >
                             Join
                           </button>
@@ -1518,7 +1499,7 @@ function App() {
                       onClick={handleDevModeToggle}
                       className="relative inline-flex h-5 w-9 items-center rounded-full bg-gray-200 dark:bg-gray-700 transition-colors focus:outline-none"
                     >
-                      <span className={`${devMode ? 'translate-x-5 bg-blue-600' : 'translate-x-1 bg-white'} inline-block h-3 w-3 transform rounded-full transition-transform`} />
+                      <span className={`${devMode ? 'translate-x-5 bg-[#A8ACE0]' : 'translate-x-1 bg-white'} inline-block h-3 w-3 transform rounded-full transition-transform`} />
                     </button>
                   </div>
 
@@ -1532,7 +1513,7 @@ function App() {
                     </div>
                     <button
                       onClick={handleExportData}
-                      className="px-2 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                      className="px-2 py-1 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] transition-colors flex items-center gap-1"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -1637,7 +1618,7 @@ function App() {
               </h2>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
               {/* Role Name Input */}
               <div>
                 <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
@@ -1649,17 +1630,163 @@ function App() {
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      editingRole ? handleUpdateRole() : handleCreateRole();
-                    }
-                  }}
                   autoFocus
                 />
               </div>
 
-              {/* Tool Search */}
+              {/* Performance Tracking Options */}
+              <div className="space-y-3 pt-2 border-t dark:border-gray-700">
+                <h3 className="text-sm font-medium dark:text-gray-200">Performance Tracking</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                    <input
+                      type="checkbox"
+                      id="enableTimeTracking"
+                      checked={timeTrackingEnabled}
+                      onChange={(e) => setTimeTrackingEnabled(e.target.checked)}
+                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-transparent"
+                    />
+                    <label htmlFor="enableTimeTracking" className="text-sm dark:text-gray-300">
+                      Time Tracking
+                    </label>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                    <input
+                      type="checkbox"
+                      id="enableQualityTracking"
+                      checked={qualityTrackingEnabled}
+                      onChange={(e) => setQualityTrackingEnabled(e.target.checked)}
+                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-transparent"
+                    />
+                    <label htmlFor="enableQualityTracking" className="text-sm dark:text-gray-300">
+                      Quality Tracking
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Time Tracking Settings - Only shown if time tracking is enabled */}
+              {timeTrackingEnabled && (
+                <div className="space-y-3 pt-2 border-t dark:border-gray-700">
+                  <h3 className="text-sm font-medium dark:text-gray-200">Time Settings</h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                      <input
+                        type="checkbox"
+                        id="aiTimeTracking"
+                        checked={isAITimeTracking}
+                        onChange={(e) => setIsAITimeTracking(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-transparent"
+                      />
+                      <label htmlFor="aiTimeTracking" className="text-sm dark:text-gray-300">
+                        AI Time Tracking
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                      <input
+                        type="checkbox"
+                        id="overtimeTracking"
+                        checked={overtimeEnabled}
+                        onChange={(e) => setOvertimeEnabled(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-transparent"
+                      />
+                      <label htmlFor="overtimeTracking" className="text-sm dark:text-gray-300">
+                        Allow Overtime
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
               <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Base Hourly Rate (USD)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={hourlyRate || ''}
+                        onChange={(e) => setHourlyRate(e.target.value ? parseFloat(e.target.value) : undefined)}
+                        className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                        placeholder="Enter base rate..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Performance Bonus
+                      </label>
+                      <select
+                        value={productivityBonus || ''}
+                        onChange={(e) => setProductivityBonus(e.target.value ? parseInt(e.target.value) as 5 | 10 | 15 : undefined)}
+                        className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                      >
+                        <option value="">No bonus</option>
+                        <option value="5">5% for high performance</option>
+                        <option value="10">10% for exceptional</option>
+                        <option value="15">15% for outstanding</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Quality Tracking Settings - Only shown if quality tracking is enabled */}
+              {qualityTrackingEnabled && (
+                <div className="space-y-3 pt-2 border-t dark:border-gray-700">
+                  <h3 className="text-sm font-medium dark:text-gray-200">Quality Metrics</h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                      <input
+                        type="checkbox"
+                        id="codeReview"
+                        checked={codeReviewEnabled}
+                        onChange={(e) => setCodeReviewEnabled(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-transparent"
+                      />
+                      <label htmlFor="codeReview" className="text-sm dark:text-gray-300">
+                        Code Review
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 p-2 rounded bg-gray-50 dark:bg-gray-800/50">
+                      <input
+                        type="checkbox"
+                        id="testCoverage"
+                        checked={testCoverageEnabled}
+                        onChange={(e) => setTestCoverageEnabled(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-transparent"
+                      />
+                      <label htmlFor="testCoverage" className="text-sm dark:text-gray-300">
+                        Test Coverage
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Quality Standards
+                    </label>
+                    <select
+                      value={qualityStandard || ''}
+                      onChange={(e) => setQualityStandard(e.target.value as 'basic' | 'advanced' | 'expert')}
+                      className="w-full px-2 py-1.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:text-gray-100 text-sm"
+                    >
+                      <option value="basic">Basic (80% pass rate)</option>
+                      <option value="advanced">Advanced (90% pass rate)</option>
+                      <option value="expert">Expert (95% pass rate)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Tool Selection */}
+              <div className="space-y-2 pt-2 border-t dark:border-gray-700">
                 <label className="block text-xs text-gray-500 dark:text-gray-400 text-left mb-1">
                   Tools
                 </label>
@@ -1677,23 +1804,23 @@ function App() {
                     const tool = tools.find(t => t.url === toolUrl);
                     if (!tool) return null;
                     return (
-                      <div 
+                    <div 
                         key={tool.url}
-                        className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                      >
+                      className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                    >
                         <img 
                           src={tool.logomark} 
                           alt={`${tool.name} logo`} 
                           className="w-4 h-4 object-contain"
                         />
                         <span>{tool.name}</span>
-                        <button
+                      <button
                           onClick={() => setSelectedTools(prev => prev.filter(t => t !== tool.url))}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                        >
-                          ×
-                        </button>
-                      </div>
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                      >
+                        ×
+                      </button>
+                    </div>
                     );
                   })}
                 </div>
@@ -1732,6 +1859,17 @@ function App() {
                   setIsRoleModalOpen(false);
                   setSelectedTools([]);
                   setToolSearch('');
+                  setTimeTrackingEnabled(false);
+                  setIsAITimeTracking(false);
+                  setHourlyRate(undefined);
+                  setProductivityBonus(undefined);
+                  setArbitrageEnabled(false);
+                  setRevaluationDeadline(undefined);
+                  setOvertimeEnabled(false);
+                  setQualityTrackingEnabled(false);
+                  setCodeReviewEnabled(false);
+                  setTestCoverageEnabled(false);
+                  setQualityStandard('basic');
                 }}
                 className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               >
@@ -1740,7 +1878,7 @@ function App() {
               <button
                 onClick={editingRole ? handleUpdateRole : handleCreateRole}
                 disabled={!newRoleName.trim()}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] disabled:bg-[#D7DAFA] disabled:cursor-not-allowed"
               >
                 {editingRole ? 'Update' : 'Create'}
               </button>
@@ -1786,7 +1924,7 @@ function App() {
               <button
                 onClick={handleCreateOrg}
                 disabled={!newOrgName.trim()}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] disabled:bg-[#D7DAFA] disabled:cursor-not-allowed"
               >
                 Create
               </button>

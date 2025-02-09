@@ -29,12 +29,31 @@ export interface Role {
   name: string;
   createdAt: Date;
   tools: string[];
+  timeTracking: {
+    enabled: boolean;
+    isAITracking: boolean;
+    hourlyRate?: number;
+    productivityBonus?: 5 | 10 | 15;
+    overtime?: {
+      enabled: boolean;
+    };
+    arbitrage?: {
+      enabled: boolean;
+      revaluationDeadline?: Date;
+    };
+  };
+  qualityTracking?: {
+    enabled: boolean;
+    codeReview: boolean;
+    testCoverage: boolean;
+    standard: 'basic' | 'advanced' | 'expert';
+  };
 }
 
 export interface Rule {
   id: string;
   text: string;
-  performanceLevel: '😍' | '👋' | '🤔';
+  performanceLevel: '😍' | '👋' | '🤔' | '⛔️';
   logic: string;
   pattern: {
     condition: 'more_than' | 'less_than' | 'exactly' | 'at_least' | 'at_most';
