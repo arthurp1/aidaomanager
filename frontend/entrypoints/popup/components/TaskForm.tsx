@@ -11,6 +11,7 @@ interface Tool {
   url: string;
   logomark: string;
   publicDocs: string;
+  schema?: any;
 }
 
 interface Endpoint {
@@ -50,24 +51,234 @@ interface RulePattern {
   condition: 'more_than' | 'less_than' | 'exactly' | 'at_least' | 'at_most';
   threshold: number;
   metric: string;
-  timePattern: TimePattern;
+  timePattern: {
+    type: 'in_a_row' | 'in_week' | 'in_month' | 'before_date' | 'by_time' | 'every_x_days';
+    value: number;
+    target?: string;
+  };
 }
 
-interface GeneratedRule {
-  performanceLevel: '😍' | '👋' | '🤔';
-  text: string;
-  logic: string;
+interface GeneratedRule extends Rule {
+  pattern: RulePattern;
 }
 
 interface TaskFormProps {
   onCreateTask: (task: { 
     title: string; 
-    estimatedTime: number;
+    estimatedTime: number; 
     tools: string[];
     requirements: Requirement[];
   }) => void;
   onCancel: () => void;
 }
+
+// Add new RuleBuilder component before the TaskForm component
+interface RuleBuilderProps {
+  rule: Rule;
+  metric: string;
+  onUpdate: (updatedRule: Rule) => void;
+  onDelete: () => void;
+}
+
+const RuleBuilder: React.FC<RuleBuilderProps> = ({
+  rule,
+  metric,
+  onUpdate,
+  onDelete
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const performanceLevels = [
+    { emoji: '😍', label: 'Shoutout', consequence: 'outstanding performance' },
+    { emoji: '👋', label: 'Notification', consequence: 'something needs attention' },
+    { emoji: '🤔', label: 'Questionable', consequence: '1on1 meeting with colleague' },
+    { emoji: '⛔️', label: 'Harmful', consequence: 'team meeting and notification' }
+  ];
+  const conditions: Array<'more_than' | 'less_than' | 'exactly' | 'at_least' | 'at_most'> = 
+    ['more_than', 'less_than', 'exactly', 'at_least', 'at_most'];
+  const timeTypes: Array<'in_a_row' | 'in_week' | 'in_month' | 'before_date' | 'by_time' | 'every_x_days'> = 
+    ['in_a_row', 'in_week', 'in_month', 'before_date', 'by_time', 'every_x_days'];
+
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  // Helper function to render time pattern inputs based on type
+  const renderTimePatternInputs = () => {
+    const type = rule.pattern.timePattern.type;
+
+    if (type === 'before_date') {
+      return (
+        <input
+          type="date"
+          value={rule.pattern.timePattern.target || getTodayDate()}
+          onChange={(e) => onUpdate({
+            ...rule,
+            pattern: {
+              ...rule.pattern,
+              timePattern: { ...rule.pattern.timePattern, target: e.target.value }
+            }
+          })}
+          min={getTodayDate()}
+          className="px-1 py-0.5 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-gray-600 rounded"
+        />
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-1">
+        {type === 'in_week' && <span>in</span>}
+        <div className="relative flex items-center">
+          {metric.toLowerCase().includes('rate') && <span className="absolute left-1.5">%</span>}
+          <input
+            type="number"
+            value={rule.pattern.timePattern.value}
+            onChange={(e) => onUpdate({
+              ...rule,
+              pattern: {
+                ...rule.pattern,
+                timePattern: { ...rule.pattern.timePattern, value: Number(e.target.value) }
+              }
+            })}
+            className={`w-12 px-1 py-0.5 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-gray-600 rounded ${
+              metric.toLowerCase().includes('rate') ? 'pl-5' : ''
+            }`}
+          />
+        </div>
+        {type === 'in_week' && <span>weeks</span>}
+        {type === 'in_month' && <span>months</span>}
+        {type === 'in_a_row' && <span>times in a row</span>}
+        {type === 'every_x_days' && <span>days</span>}
+        {type === 'by_time' && <span>hours</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-1 p-1 bg-gray-50 dark:bg-dark-hover/30 rounded text-xs">
+      <div className="flex items-center gap-1">
+        <div className="relative">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="w-8 h-6 px-1 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-gray-600 rounded cursor-pointer flex items-center justify-center"
+            title="Select performance level"
+          >
+            <span>{rule.performanceLevel}</span>
+          </button>
+          {/* Custom dropdown content */}
+          {isDropdownOpen && (
+            <div 
+              className="absolute left-0 top-full mt-1 bg-white dark:bg-dark-surface border border-gray-200 dark:border-gray-700 rounded shadow-lg z-20 min-w-[200px]"
+            >
+              {performanceLevels.map(level => (
+                <div 
+                  key={level.emoji}
+                  className="px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-dark-hover cursor-pointer"
+                  onClick={() => {
+                    onUpdate({ ...rule, performanceLevel: level.emoji as '😍' | '👋' | '🤔' | '⛔️' });
+                    setIsDropdownOpen(false);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{level.emoji}</span>
+                    <span className="font-medium">{level.label}</span>
+                  </div>
+                  <div className="mt-0.5 pl-6 text-[10px] text-gray-500 dark:text-gray-400">
+                    {level.consequence}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div 
+          className="flex-1 min-w-0"
+          onClick={() => setIsEditingTitle(true)}
+        >
+          {isEditingTitle ? (
+            <input
+              type="text"
+              value={rule.text}
+              onChange={(e) => onUpdate({ ...rule, text: e.target.value })}
+              onBlur={() => setIsEditingTitle(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setIsEditingTitle(false);
+                }
+              }}
+              placeholder="Rule name"
+              className="w-full px-1 py-0.5 bg-white dark:bg-dark-bg border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+            />
+          ) : (
+            <div className="px-1 py-0.5 text-gray-900 dark:text-gray-100 cursor-text hover:bg-white/50 dark:hover:bg-dark-bg/50 rounded">
+              {rule.text}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 pl-1">
+        <button
+          onClick={onDelete}
+          className="px-1 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+        >
+          ×
+        </button>
+        <select
+          value={rule.pattern.condition}
+          onChange={(e) => onUpdate({
+            ...rule,
+            pattern: { ...rule.pattern, condition: e.target.value as typeof rule.pattern.condition }
+          })}
+          className="px-1 py-0.5 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-gray-600 rounded"
+        >
+          {conditions.map(cond => (
+            <option key={cond} value={cond}>{cond.replace('_', ' ')}</option>
+          ))}
+        </select>
+        <div className="relative flex items-center">
+          {metric.toLowerCase().includes('rate') && <span className="absolute left-1.5">%</span>}
+          <input
+            type="number"
+            value={rule.pattern.threshold}
+            onChange={(e) => onUpdate({
+              ...rule,
+              pattern: { ...rule.pattern, threshold: Number(e.target.value) }
+            })}
+            className={`w-12 px-1 py-0.5 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-gray-600 rounded ${
+              metric.toLowerCase().includes('rate') ? 'pl-5' : ''
+            }`}
+          />
+        </div>
+        <span>{metric.split(' ').slice(-1)[0]}</span>
+      </div>
+      <div className="flex items-center gap-1 pl-1">
+        <select
+          value={rule.pattern.timePattern.type}
+          onChange={(e) => onUpdate({
+            ...rule,
+            pattern: {
+              ...rule.pattern,
+              timePattern: { 
+                ...rule.pattern.timePattern, 
+                type: e.target.value as typeof rule.pattern.timePattern.type,
+                target: e.target.value === 'before_date' ? getTodayDate() : undefined
+              }
+            }
+          })}
+          className="px-1 py-0.5 bg-gray-50 dark:bg-dark-hover border border-gray-300 dark:border-gray-600 rounded"
+        >
+          {timeTypes.map(type => (
+            <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
+        {renderTimePatternInputs()}
+      </div>
+    </div>
+  );
+};
 
 export const TaskForm: React.FC<TaskFormProps> = ({ 
   onCreateTask, 
@@ -128,28 +339,69 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     setIsGeneratingRequirements(true);
     
     try {
-      // Gather tool information
+      // Gather tool information with their schema
       const toolsInfo = newTaskTools.map(toolUrl => {
         const tool = tools.find(t => t.url === toolUrl);
         return tool ? {
           name: tool.name,
-          url: tool.url
+          url: tool.url,
+          schema: tool.schema
         } : null;
-      }).filter((tool): tool is { name: string; url: string } => tool !== null);
-      
-      const newRequirements = toolsInfo.map(tool => ({
-        id: Math.random().toString(36).substr(2, 9),
-        emoji: '⚡',
-        alternativeEmojis: ['🔧', '🛠️'],
-        title: 'Tool Usage',
-        measure: `${tool.name} activity score (min 4/5)`,
-        alternativeMeasures: [
-          `${tool.name} engagement rate`,
-          `${tool.name} usage frequency`
-        ],
-        severity: 'high',
-        description: `Track usage and engagement with ${tool.name}`,
-        rules: [] as Rule[]
+      }).filter((tool): tool is { name: string; url: string; schema: any } => tool !== null);
+
+      const prompt = `Given the following task and tools, generate requirements to track performance:
+
+Task: "${newTaskName}"
+
+Tools being used:
+${toolsInfo.map(tool => `
+${tool.name} (${tool.url})
+Available metrics:
+${Object.entries(tool.schema || {}).map(([key, value]: [string, any]) => `- ${key}: ${value.description}`).join('\n')}
+`).join('\n')}
+
+For each tool, generate a requirement that includes:
+1. Title: Clear, concise name for the requirement
+2. Measure: Specific metric to track (use actual metrics from the tool's schema)
+3. Top 3 most relevant emojis for this requirement
+4. 3 alternative ways to measure this requirement (based on available metrics)
+5. Description: Brief explanation of what's being tracked
+
+Format each requirement as a JSON object with these fields.
+Focus on meaningful metrics that indicate actual performance and engagement.
+`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let generatedReqs;
+      try {
+        generatedReqs = JSON.parse(response.text());
+      } catch (e) {
+        // Fallback to basic requirements if parsing fails
+        generatedReqs = toolsInfo.map(tool => ({
+          title: `${tool.name} Usage`,
+          measure: `${tool.name} activity score`,
+          emojis: ['⚡', '🔧', '🛠️'],
+            alternativeMeasures: [
+            `${tool.name} engagement rate`,
+            `${tool.name} usage frequency`,
+            `${tool.name} performance score`
+          ],
+          description: `Track usage and engagement with ${tool.name}`
+        }));
+      }
+
+      const newRequirements = generatedReqs.map((req: any) => ({
+            id: Math.random().toString(36).substr(2, 9),
+        emoji: req.emojis[0],
+        alternativeEmojis: req.emojis.slice(1),
+        title: req.title,
+        measure: req.measure,
+        alternativeMeasures: req.alternativeMeasures,
+            severity: 'high',
+        description: req.description,
+        rules: [],
+        isAccepted: false
       }));
 
       setRequirements(newRequirements);
@@ -160,135 +412,122 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     }
   };
 
-  // Function to generate rules for a requirement
-  const generateRules = async (requirement: Requirement): Promise<Rule[]> => {
-    const prompt = `Given the following context:
+  // Function to generate rules for an accepted requirement
+  const generateRulesForRequirement = async (requirement: Requirement) => {
+    const tool = tools.find(t => newTaskTools.includes(t.url));
+    if (!tool) return;
+
+    const metric = tool.schema[requirement.measure];
+    
+    const prompt = `Generate 3 performance rules for the following requirement:
+
 Task: "${newTaskName}"
-Tool: ${newTaskTools.join(', ')}
+Tool: ${tool.name}
 Requirement: ${requirement.title}
-Measure: ${requirement.measure}
+Metric: ${requirement.measure} (${metric?.description || 'No description'})
 
-Generate 3 specific rules with different performance levels that would trigger different actions.
-Use a variety of time patterns and conditions to create meaningful rules.
+Generate 3 rules with different performance levels:
+1. 😍 Exceptional performance (worth recognition)
+2. 👋 Good performance (meeting expectations)
+3. 🤔 Needs improvement (requires attention)
 
-Available Time Patterns:
-- "X times in a row" (consecutive achievements)
-- "X times in a week" (weekly frequency)
-- "X times in a month" (monthly quota)
-- "before [day]" (deadline-based)
-- "by [time]" (time-of-day based)
-- "every X days" (regular intervals)
+Each rule should have:
+- A clear performance threshold
+- A time period for measurement (in_week, in_month, in_a_row, etc.)
+- A clear explanation of why this level matters
 
-Available Conditions:
-- "more than X"
-- "less than X"
-- "exactly X"
-- "at least X"
-- "at most X"
-
-For each rule, generate:
-1. 😍 Exceptional (worth a team shoutout):
-   - Should be challenging but achievable
-   - Use longer time spans or higher thresholds
-   - Example: "more than 5 times in a month" or "7 days in a row"
-
-2. 👋 Reminder (helpful to get a DM):
-   - Should be an early warning
-   - Use shorter time spans or lower thresholds
-   - Example: "less than 2 times this week" or "not done by 10am"
-
-3. 🤔 Questionable (needs discussion in 1on1):
-   - Should indicate a concerning pattern
-   - Use multiple missed targets or consistent underperformance
-   - Example: "less than 50% completion in two weeks" or "late 3 times in a month"
-
-Return as JSON array with format:
-[
-  {
+Use this exact format for the response:
+{
+  "rules": [
+    {
+      "id": "great_performance",
     "performanceLevel": "😍",
-    "text": "short rule text",
-    "logic": "detailed explanation of the logic and why it deserves recognition",
+      "text": "brief description of exceptional performance",
+      "logic": "explanation of why this deserves recognition",
     "pattern": {
       "condition": "more_than",
-      "threshold": 5,
-      "metric": "completion",
+        "threshold": number,
+        "metric": "${requirement.measure}",
       "timePattern": {
-        "type": "in_month",
-        "value": 1
+          "type": "in_week",
+          "value": number
+        }
       }
     }
-  }
-]`;
+  ]
+}
+
+Example metrics from the tool:
+${Object.entries(tool.schema || {})
+  .map(([key, value]: [string, any]) => `- ${key}: ${value.description}`)
+  .join('\n')}`;
 
     try {
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      console.log('Raw rule generation response:', response.text());
-      const generatedRules = JSON.parse(response.text()) as (GeneratedRule & { pattern?: RulePattern })[];
+      const generatedRules = JSON.parse(response.text()) as { rules: Rule[] };
 
-      return generatedRules.map(rule => ({
-        ...rule,
-        id: Math.random().toString(36).substr(2, 9),
-        pattern: rule.pattern || {
-          condition: 'exactly',
-          threshold: 1,
-          metric: requirement.measure,
-          timePattern: {
-            type: 'in_a_row',
-            value: 1
-          }
-        }
-      }));
+      setRequirements(reqs => reqs.map(r =>
+        r.id === requirement.id
+          ? { ...r, rules: generatedRules.rules }
+          : r
+      ));
     } catch (error) {
       console.error('Error generating rules:', error);
-      // Fallback rules with patterns
-      return [
+      // Fallback rules
+      const fallbackRules: Rule[] = [
         {
-          id: Math.random().toString(36).substr(2, 9),
-          performanceLevel: '😍',
-          text: `${requirement.measure} achieved 5 times in a row`,
-          logic: 'Consistently meeting the requirement shows exceptional commitment',
+          id: `${requirement.measure}_great`,
+          performanceLevel: "😍",
+          text: `Excellent ${requirement.measure} performance`,
+          logic: "Consistently exceeding expectations",
           pattern: {
-            condition: 'more_than',
+            condition: "more_than",
+            threshold: 10,
+            metric: requirement.measure,
+            timePattern: {
+              type: "in_week",
+              value: 1
+            }
+          }
+        },
+        {
+          id: `${requirement.measure}_ok`,
+          performanceLevel: "👋",
+          text: `Good ${requirement.measure} performance`,
+          logic: "Meeting basic expectations",
+          pattern: {
+            condition: "more_than",
             threshold: 5,
             metric: requirement.measure,
             timePattern: {
-              type: 'in_a_row',
+              type: "in_week",
               value: 1
             }
           }
         },
         {
-          id: Math.random().toString(36).substr(2, 9),
-          performanceLevel: '👋',
-          text: `${requirement.measure} missed once this week`,
-          logic: 'A single miss is a good time for a gentle reminder',
+          id: `${requirement.measure}_low`,
+          performanceLevel: "🤔",
+          text: `Low ${requirement.measure} performance`,
+          logic: "Needs improvement",
           pattern: {
-            condition: 'less_than',
-            threshold: 1,
-            metric: requirement.measure,
-            timePattern: {
-              type: 'in_week',
-              value: 1
-            }
-          }
-        },
-        {
-          id: Math.random().toString(36).substr(2, 9),
-          performanceLevel: '🤔',
-          text: `${requirement.measure} missed 3 times this month`,
-          logic: 'A pattern of misses indicates a need for discussion',
-          pattern: {
-            condition: 'less_than',
+            condition: "less_than",
             threshold: 3,
             metric: requirement.measure,
             timePattern: {
-              type: 'in_month',
+              type: "in_week",
               value: 1
             }
           }
         }
       ];
+
+      setRequirements(reqs => reqs.map(r =>
+        r.id === requirement.id
+          ? { ...r, rules: fallbackRules }
+          : r
+      ));
     }
   };
 
@@ -390,23 +629,23 @@ Return as JSON array with format:
                 const tool = tools.find(t => t.url === toolUrl);
                 if (!tool) return null;
                 return (
-                  <div 
+                <div 
                     key={tool.url}
-                    className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
-                  >
+                  className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs"
+                >
                     <img 
                       src={tool.logomark} 
                       alt={`${tool.name} logo`} 
                       className="w-4 h-4 object-contain"
                     />
                     <span>{tool.name}</span>
-                    <button
+                  <button
                       onClick={() => setNewTaskTools(prev => prev.filter(t => t !== tool.url))}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                    >
-                      ×
-                    </button>
-                  </div>
+                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                  >
+                    ×
+                  </button>
+                </div>
                 );
               })}
             </div>
@@ -512,7 +751,7 @@ Return as JSON array with format:
                     <button
                       onClick={handleAddManualRequirement}
                       disabled={!newRequirement.title.trim() || !newRequirement.measure.trim()}
-                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-2 py-1 text-xs bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] disabled:bg-[#D7DAFA] disabled:cursor-not-allowed"
                     >
                       Add
                     </button>
@@ -526,21 +765,135 @@ Return as JSON array with format:
               {requirements.map((req) => (
                 <div 
                   key={req.id}
-                  className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded group"
+                  className="flex items-start gap-2 p-2 bg-gray-50 dark:bg-dark-hover/30 rounded group relative"
                 >
-                  <span className="text-lg">{req.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium dark:text-gray-200">{req.title}</div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <input
+                      type="text"
+                      value={req.title}
+                      onChange={(e) => {
+                        setRequirements(reqs => reqs.map(r =>
+                          r.id === req.id ? { ...r, title: e.target.value } : r
+                        ));
+                      }}
+                      className="text-sm font-medium dark:text-gray-200 bg-transparent border-none p-0 w-full focus:ring-0"
+                    />
+                    <div className="relative">
+                      <div 
+                        onClick={() => setShowMeasureDropdown(showMeasureDropdown === req.id ? null : req.id)}
+                        className="text-xs text-gray-600 dark:text-gray-400 cursor-pointer flex items-center gap-1"
+                      >
                       Measured by: {req.measure}
+                        <svg 
+                          className={`w-3 h-3 transition-transform ${showMeasureDropdown === req.id ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      {/* Measures dropdown */}
+                      {showMeasureDropdown === req.id && (
+                        <div className="absolute left-0 top-full mt-1 z-10">
+                          <div className="bg-white dark:bg-dark-surface border dark:border-gray-700 rounded shadow-lg p-1">
+                            {[req.measure, ...req.alternativeMeasures].map(measure => (
+                              <button
+                                key={measure}
+                                onClick={() => {
+                                  setRequirements(reqs => reqs.map(r =>
+                                    r.id === req.id
+                                      ? { ...r, measure: measure, alternativeMeasures: [req.measure, ...req.alternativeMeasures].filter(m => m !== measure) }
+                                      : r
+                                  ));
+                                  setShowMeasureDropdown(null);
+                                }}
+                                className="block w-full text-left px-2 py-1 text-xs hover:bg-gray-100 dark:hover:bg-dark-hover rounded"
+                              >
+                                {measure}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
+                    {/* Show rules if requirement is accepted */}
+                    {req.isAccepted && (
+                      <div className="mt-2 space-y-1">
+                        {req.rules?.map((rule, index) => (
+                          <RuleBuilder
+                            key={rule.id}
+                            rule={rule}
+                            metric={req.measure}
+                            onUpdate={(updatedRule) => {
+                              setRequirements(reqs => reqs.map(r =>
+                                r.id === req.id
+                                  ? { ...r, rules: r.rules?.map((r, i) => i === index ? updatedRule : r) }
+                                  : r
+                              ));
+                            }}
+                            onDelete={() => {
+                              setRequirements(reqs => reqs.map(r =>
+                                r.id === req.id
+                                  ? { ...r, rules: r.rules?.filter((_, i) => i !== index) }
+                                  : r
+                              ));
+                            }}
+                          />
+                        ))}
+                        <button
+                          onClick={() => {
+                            const newRule: Rule = {
+                              id: Math.random().toString(36).substr(2, 9),
+                              performanceLevel: "👋",
+                              text: `New ${req.measure} rule`,
+                              logic: "Define the logic for this rule",
+                              pattern: {
+                                condition: "more_than",
+                                threshold: 0,
+                                metric: req.measure,
+                                timePattern: {
+                                  type: "in_week",
+                                  value: 1
+                                }
+                              }
+                            };
+                            setRequirements(reqs => reqs.map(r =>
+                              r.id === req.id
+                                ? { ...r, rules: [...(r.rules || []), newRule] }
+                                : r
+                            ));
+                          }}
+                          className="w-full text-center px-2 py-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          + Add Rule
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  <div className="flex items-center gap-1">
+                    {!req.isAccepted && (
+                      <button
+                        onClick={async () => {
+                          setRequirements(reqs => reqs.map(r =>
+                            r.id === req.id ? { ...r, isAccepted: true } : r
+                          ));
+                          await generateRulesForRequirement(req);
+                        }}
+                        className="text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300"
+                        title="Accept requirement"
+                      >
+                        ✓
+                      </button>
+                    )}
                   <button
                     onClick={() => setRequirements(reqs => reqs.filter(r => r.id !== req.id))}
-                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                      className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
+                      title="Delete requirement"
                   >
                     ×
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -558,7 +911,7 @@ Return as JSON array with format:
           <button
             onClick={handleSubmit}
             disabled={!newTaskName.trim() || newTaskTime <= 0}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm bg-[#A8ACE0] text-white rounded hover:bg-[#8A8FC6] disabled:bg-[#D7DAFA] disabled:cursor-not-allowed"
           >
             Create Task
           </button>

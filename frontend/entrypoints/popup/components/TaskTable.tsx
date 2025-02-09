@@ -206,7 +206,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
               id="new-task-title"
               type="text"
               placeholder="Add a subtask..."
-              className="flex-1 h-full py-0.5 px-0 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
+              className="flex-1 h-full py-0.5 px-0 bg-transparent  focus:outline-none dark:text-gray-100 text-sm placeholder:text-gray-400 dark:placeholder:text-gray-600"
               value={newTask.title}
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
               onKeyDown={(e) => {
@@ -218,7 +218,7 @@ export const TaskTable: React.FC<TaskTableProps> = ({
             <input
               type="number"
               placeholder="0"
-              className="w-12 h-full py-0.5 px-0 bg-transparent border-b border-gray-200 dark:border-gray-700 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none dark:text-gray-100 text-sm text-right placeholder:text-gray-400 dark:placeholder:text-gray-600"
+              className="w-12 h-full py-0.5 px-0 bg-transparent focus:outline-none dark:text-gray-100 text-sm text-right placeholder:text-gray-400 dark:placeholder:text-gray-600"
               value={newTask.estimatedTime || ''}
               onChange={(e) => setNewTask({ ...newTask, estimatedTime: Number(e.target.value) })}
               onKeyDown={(e) => {

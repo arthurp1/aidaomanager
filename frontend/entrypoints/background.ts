@@ -5,30 +5,29 @@ export default defineBackground(() => {
 
   let currentUrl: string = '';
 
-  // Function to update current URL
+  // Single function to update current URL
   const updateCurrentUrl = async () => {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      console.log('Active tabs:', tabs);
-      const currentTab = tabs[0];
-      if (currentTab?.url) {
-        currentUrl = currentTab.url;
-        // Store in local storage for persistence
-        await chrome.storage.local.set({ currentUrl });
-        console.log('Updated current URL in background:', currentUrl);
-      } else {
-        console.log('No URL found in current tab:', currentTab);
-      }
-    } catch (error) {
-      console.error('Error updating current URL:', error);
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      currentUrl = tab.url;
+      chrome.storage.local.set({ currentUrl });
     }
   };
 
-  // Initialize state from storage
+  // Initialize state from storage and set up timer if needed
   chrome.storage.local.get(['activeTask', 'elapsedTime', 'currentUrl']).then(result => {
     console.log('Initializing background state from storage:', result);
     if (result.activeTask) {
       console.log('Restoring active task:', result.activeTask);
+      // Set badge text for active task
+      const elapsedTime = result.elapsedTime || 0;
+      const minutes = Math.floor(elapsedTime / 60);
+      const hours = Math.floor(minutes / 60);
+      const displayTime = hours > 0 
+        ? `${hours}:${String(minutes % 60).padStart(2, '0')}`
+        : `${minutes}:${String(elapsedTime % 60).padStart(2, '0')}`;
+      chrome.action.setBadgeText({ text: displayTime });
+      chrome.action.setBadgeBackgroundColor({ color: '#A8ACE0' });
     }
     if (result.currentUrl) {
       currentUrl = result.currentUrl;
@@ -37,31 +36,29 @@ export default defineBackground(() => {
   });
 
   // Listen for tab changes
-  chrome.tabs.onActivated.addListener((activeInfo) => {
-    console.log('Tab activated:', activeInfo);
-    updateCurrentUrl();
-  });
-  
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    console.log('Tab updated:', { tabId, changeInfo, tab });
+  chrome.tabs.onActivated.addListener(updateCurrentUrl);
+  chrome.tabs.onUpdated.addListener((_, changeInfo) => {
     if (changeInfo.url) {
       updateCurrentUrl();
     }
   });
 
+  // Listen for extension install/update
+  chrome.runtime.onInstalled.addListener(() => {
+    // Clear any existing timer state
+    chrome.storage.local.remove(['activeTask', 'elapsedTime']);
+    chrome.action.setBadgeText({ text: '' });
+  });
+
   // Listen for messages from the popup
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((request, _, sendResponse) => {
     console.log('Background received message:', request);
     
-    // Handle getCurrentUrl request
     if (request.type === 'getCurrentUrl') {
       console.log('Sending current URL to popup:', currentUrl);
       sendResponse({ currentUrl });
-    } else {
-      sendResponse({ received: true });
     }
-    
-    return true; // Required for async response
+    return true;
   });
 
   // Initial URL check

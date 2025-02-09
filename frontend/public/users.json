@@ -1,0 +1,15 @@
+{
+  "users": [
+    {
+      "wallet_address": "0x8911f19545a6332B3ccDdD273731f2E0ea0148c4",
+      "eth_balance": "0.043",
+      "usd_balance": "108.68",
+      "chain_id": 1,
+      "connected_accounts": {
+        "discord": "artypwarty"
+      },
+      "organizations": [],
+      "last_updated": "2024-03-21T00:00:00Z"
+    }
+  ]
+} 
