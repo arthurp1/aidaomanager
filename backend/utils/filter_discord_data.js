@@ -2,13 +2,31 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { readFromNillion, writeToNillion } from '../data/nillion/nillion.js';
 
 // ES Modules don't have __dirname, so we need to create it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DISCORD_DATA_FILE = path.join(__dirname, '..', 'data', 'discord.json');
-const FILTERED_DATA_FILE = path.join(__dirname, '..', 'data', 'discord_filtered.json');
+// File paths
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const NILLION_DIR = path.join(DATA_DIR, 'nillion');
+const RECORD_IDS_FILE = path.join(NILLION_DIR, 'nillion_record_ids.json');
+const FILTERED_RECORD_IDS_FILE = path.join(NILLION_DIR, 'nillion_filtered_record_ids.json');
+
+async function loadRecordIds() {
+    try {
+        const data = await fs.readFile(RECORD_IDS_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error('Error loading record IDs:', error);
+        return [];
+    }
+}
+
+async function saveFilteredRecordIds(recordIds) {
+    await fs.writeFile(FILTERED_RECORD_IDS_FILE, JSON.stringify(recordIds, null, 2));
+}
 
 function formatDateTime(date) {
     const d = date || new Date();
@@ -23,14 +41,23 @@ function formatDateTime(date) {
     });
 }
 
-// This function filters and aggregates Discord data from JSON
+// This function filters and aggregates Discord data from Nillion
 // and computes metrics per user including activity, responsiveness, and engagement.
 async function filterDiscordData() {
   let messages;
   try {
-    messages = JSON.parse(await fs.readFile(DISCORD_DATA_FILE, 'utf8'));
+    const recordIds = await loadRecordIds();
+    if (!recordIds.length) {
+      throw new Error('No record IDs found');
+    }
+    
+    const result = await readFromNillion(recordIds);
+    if (!result.success) {
+      throw new Error(`Failed to read from Nillion: ${result.error}`);
+    }
+    messages = result.data;
   } catch (err) {
-    console.error('Error reading discord messages from JSON:', err);
+    console.error('Error reading discord messages from Nillion:', err);
     return [];
   }
 
@@ -128,12 +155,22 @@ async function filterDiscordData() {
     aggregatedData.push(m);
   });
 
-  // Store the filtered data to JSON
+  // Store the filtered data to Nillion
   try {
-    await fs.writeFile(FILTERED_DATA_FILE, JSON.stringify(aggregatedData, null, 2));
-    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in ${FILTERED_DATA_FILE}`);
+    const saveResult = await writeToNillion(aggregatedData);
+    if (!saveResult.success) {
+      throw new Error(`Failed to save filtered data to Nillion: ${saveResult.error}`);
+    }
+    
+    // Store the new record IDs for the filtered data
+    if (saveResult.recordIds) {
+      await saveFilteredRecordIds(saveResult.recordIds);
+    }
+    
+    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in Nillion`);
+    console.log(`Filtered record IDs saved to ${FILTERED_RECORD_IDS_FILE}`);
   } catch (err) {
-    console.error('Error writing filtered discord data to JSON:', err);
+    console.error('Error writing filtered discord data to Nillion:', err);
   }
 
   return aggregatedData;

@@ -1,10 +1,19 @@
 import { SecretVaultWrapper } from 'nillion-sv-wrappers';
 import { orgConfig } from './nillionOrgConfig.js';
 import { createRequire } from 'module';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 const schema = require('./schema.json');
 
-async function main() {
+const SCHEMA_ID_FILE = path.join(__dirname, 'schemaId.json');
+
+async function createSchema() {
   try {
     const org = new SecretVaultWrapper(
       orgConfig.nodes,
@@ -15,14 +24,34 @@ async function main() {
     // Create a new collection schema for all nodes in the org
     const collectionName = 'AIDAOMANAGER';
     const newSchema = await org.createSchema(schema, collectionName);
+    const schemaId = newSchema[0].result.data;
+    
+    // Store the schema ID
+    await fs.writeFile(SCHEMA_ID_FILE, JSON.stringify({ schemaId }));
+    
     console.log('✅ New Collection Schema created for all nodes:', newSchema);
-    console.log('👀 Schema ID:', newSchema[0].result.data);
+    console.log('👀 Schema ID:', schemaId);
+    
+    return schemaId;
   } catch (error) {
     console.error('❌ Failed to use SecretVaultWrapper:', error.message);
-    process.exit(1);
+    throw error;
   }
 }
 
-main();
+async function getSchemaId() {
+  try {
+    const data = await fs.readFile(SCHEMA_ID_FILE, 'utf8');
+    return JSON.parse(data).schemaId;
+  } catch (error) {
+    console.error('❌ Failed to read schema ID:', error.message);
+    return null;
+  }
+}
 
-//Schema ID: fd3239e4-3dab-4daa-a088-cb82e88821f9
+export { createSchema, getSchemaId };
+
+// For direct execution of the file
+if (import.meta.url === `file://${process.argv[1]}`) {
+  createSchema().catch(console.error);
+}

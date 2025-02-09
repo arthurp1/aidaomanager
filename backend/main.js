@@ -11,13 +11,14 @@ import { fetchAndStoreMessages, client } from './tools/discord.js';
 import { filterDiscordData } from './utils/filter_discord_data.js';
 import { sendDirectMessage, sendChannelMessage } from './utils/send_message.js';
 import taskTracker from './tracker/taskTracker.js';
+import { createSchema, getSchemaId } from './data/nillion/postSchema.js';
 
 // ES Modules don't have __dirname, so we need to create it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
 
 // Create readline interface
 const rl = readline.createInterface({
@@ -34,7 +35,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const TOOL_DATA_FILE = path.join(DATA_DIR, 'tool_data.json');
-const MOCK_DATA_FILE = path.join(__dirname, '..', 'frontend', 'public', 'frontend_tasks.json');
+const MOCK_DATA_FILE = path.join(__dirname, '..', 'frontend_tasks.json');
 
 // In-memory storage (replace with your database in production)
 let tasks = [];
@@ -44,6 +45,22 @@ let mockData = null;
 
 // Use the taskTracker instance directly since it's already instantiated in the module
 const tracker = taskTracker;
+
+// Initialize Nillion schema
+async function initializeNillionSchema() {
+    try {
+        let schemaId = await getSchemaId();
+        if (!schemaId) {
+            console.log('No existing schema found, creating new schema...');
+            schemaId = await createSchema();
+        }
+        console.log('Nillion schema initialized with ID:', schemaId);
+        return schemaId;
+    } catch (error) {
+        console.error('Failed to initialize Nillion schema:', error);
+        throw error;
+    }
+}
 
 // File operations
 async function ensureDataDir() {
@@ -159,8 +176,13 @@ async function handleTask(data) {
 // Load mock data on startup
 loadMockData().catch(console.error);
 
-// Initialize data on startup
-loadData().catch(console.error);
+// Initialize data and schema on startup
+Promise.all([
+    loadData(),
+    initializeNillionSchema()
+]).then(() => {
+    console.log('Server initialization complete');
+}).catch(console.error);
 
 // Available endpoints for CLI
 const endpoints = {
