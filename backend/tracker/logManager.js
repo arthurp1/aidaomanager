@@ -1,5 +1,11 @@
-const fs = require('fs').promises;
-const path = require('path');
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 class LogManager {
     constructor() {
@@ -112,4 +118,6 @@ class LogManager {
     }
 }
 
-module.exports = new LogManager(); 
+// Create and export a singleton instance
+const logManager = new LogManager();
+export default logManager; 

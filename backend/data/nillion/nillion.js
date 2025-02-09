@@ -2,52 +2,7 @@ import { SecretVaultWrapper } from 'nillion-sv-wrappers';
 import { v4 as uuidv4 } from 'uuid';
 import { orgConfig } from './nillionOrgConfig.js';
 
-const SCHEMA_ID = '541d9425-d955-4f22-b081-e1fce06ae18b';
-
-// Test data structure with plain strings (encryption handled by SecretVaultWrapper)
-const testUserData = [
-  {
-    id: uuidv4(),
-    content: "This is a sensitive test message 1",
-    authorId: "123456789",
-    authorUsername: "Test User 1",
-    channelId: "987654321",
-    channelName: "test-channel",
-    timestamp: new Date().toISOString(),
-    editedTimestamp: null,
-    attachments: [],
-    embeds: [],
-    reactions: [
-      {
-        emoji: {
-          name: "👍",
-          id: null,
-          animated: false
-        },
-        count: 1,
-        users: [
-          {
-            userId: "123456789",
-            username: "Test User 1"
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: uuidv4(),
-    content: "This is a sensitive test message 2",
-    authorId: "987654321",
-    authorUsername: "Test User 2",
-    channelId: "987654321",
-    channelName: "test-channel",
-    timestamp: new Date().toISOString(),
-    editedTimestamp: null,
-    attachments: [],
-    embeds: [],
-    reactions: []
-  }
-];
+const SCHEMA_ID = 'df17c241-271a-4e43-9a95-71fc9f6d5638';
 
 /**
  * Initialize the SecretVaultWrapper collection for writing
@@ -131,17 +86,18 @@ async function readFromNillion(query = {}, limit = null) {
 
 /**
  * Test the Nillion storage functionality
+ * @param {Array} testData - Array of test data objects to write and read
  */
-async function testNillionStorage() {
+async function testNillionStorage(testData) {
   try {
     // Test writing data
-    const writeResult = await writeToNillion(testUserData);
+    const writeResult = await writeToNillion(testData);
     if (!writeResult.success) {
       throw new Error(`Write operation failed: ${writeResult.error}`);
     }
 
     // Test reading data
-    const readResult = await readFromNillion({}, testUserData.length);
+    const readResult = await readFromNillion({}, testData.length);
     if (!readResult.success) {
       throw new Error(`Read operation failed: ${readResult.error}`);
     }

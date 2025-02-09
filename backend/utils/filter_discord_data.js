@@ -1,5 +1,12 @@
-const fs = require('fs').promises;
-const path = require('path');
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { readFromNillion, writeToNillion } from '../data/nillion/nillion.js';
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function formatDateTime(date) {
     const d = date || new Date();
@@ -14,19 +21,21 @@ function formatDateTime(date) {
     });
 }
 
-// This function filters and aggregates Discord data from the JSON file
+// This function filters and aggregates Discord data from Nillion
 // and computes metrics per user including activity, responsiveness, and engagement.
 async function filterDiscordData() {
-  const messagesPath = path.join(__dirname, '..', 'data', 'discord.json');
-  let data;
+  let messages;
   try {
-    data = await fs.readFile(messagesPath, 'utf8');
+    const result = await readFromNillion();
+    if (!result.success) {
+      throw new Error(`Failed to read from Nillion: ${result.error}`);
+    }
+    messages = result.data;
   } catch (err) {
-    console.error('Error reading discord messages file:', err);
+    console.error('Error reading discord messages from Nillion:', err);
     return [];
   }
 
-  const messages = JSON.parse(data);
   // Sort messages chronologically
   messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -89,7 +98,6 @@ async function filterDiscordData() {
   });
 
   // Second pass: Compute response times for mentions
-  // For each message, for every mention, find the next message from that mentioned user.
   messages.forEach((msg, index) => {
     const mentionRegex = /<@(?:(?:!))?(\d+)>/g;
     let match;
@@ -122,16 +130,18 @@ async function filterDiscordData() {
     aggregatedData.push(m);
   });
 
-  // Store the filtered data to backend/data/discord_filtered.json
-  const outputPath = path.join(__dirname, '..', 'data', 'discord_filtered.json');
+  // Store the filtered data to Nillion
   try {
-    await fs.writeFile(outputPath, JSON.stringify(aggregatedData, null, 2), 'utf8');
-    console.log(`[${formatDateTime(new Date())}] Filtered discord data`);
+    const saveResult = await writeToNillion(aggregatedData);
+    if (!saveResult.success) {
+      throw new Error(`Failed to save filtered data to Nillion: ${saveResult.error}`);
+    }
+    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in Nillion`);
   } catch (err) {
-    console.error('Error writing filtered discord data:', err);
+    console.error('Error writing filtered discord data to Nillion:', err);
   }
 
   return aggregatedData;
 }
 
-module.exports = { filterDiscordData };
+export { filterDiscordData };

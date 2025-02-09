@@ -1,7 +1,13 @@
-const fs = require('fs').promises;
-const path = require('path');
-const { sendDirectMessage, sendChannelMessage } = require('../utils/send_message');
-const { client } = require('../tools/discord');
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { sendDirectMessage, sendChannelMessage } from '../utils/send_message.js';
+import { client } from '../tools/discord.js';
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 class NotificationManager {
     constructor() {
@@ -145,4 +151,6 @@ class NotificationManager {
     }
 }
 
-module.exports = new NotificationManager(); 
+// Create and export a singleton instance
+const notificationManager = new NotificationManager();
+export default notificationManager; 

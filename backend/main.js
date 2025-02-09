@@ -1,14 +1,20 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
-const readline = require('readline');
-const fs = require('fs').promises;
-const path = require('path');
-const { fetchAndStoreMessages, client } = require('./tools/discord');
-const { filterDiscordData } = require('./utils/filter_discord_data');
-const { sendDirectMessage, sendChannelMessage } = require('./utils/send_message');
-const taskTracker = require('./tracker/taskTracker');
+import express from 'express';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import { v4 as uuidv4 } from 'uuid';
+import readline from 'readline';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { fetchAndStoreMessages, client } from './tools/discord.js';
+import { filterDiscordData } from './utils/filter_discord_data.js';
+import { sendDirectMessage, sendChannelMessage } from './utils/send_message.js';
+import taskTracker from './tracker/taskTracker.js';
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3000;

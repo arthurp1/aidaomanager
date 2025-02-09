@@ -1,7 +1,15 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const dotenv = require('dotenv');
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
-dotenv.config();
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Configure dotenv to look for .env in the correct location
+dotenv.config({ path: path.join(__dirname, '../.env') });
 
 class AIEvaluator {
     constructor() {
@@ -92,4 +100,6 @@ class AIEvaluator {
     }
 }
 
-module.exports = new AIEvaluator(); 
+// Create and export a singleton instance
+const aiEvaluator = new AIEvaluator();
+export default aiEvaluator; 

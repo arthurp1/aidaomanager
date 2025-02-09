@@ -1,7 +1,16 @@
-const fs = require('fs').promises;
-const path = require('path');
-const { fetchAndStoreMessages } = require('../tools/discord');
-const { filterDiscordData } = require('../utils/filter_discord_data');
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { fetchAndStoreMessages } from '../tools/discord.js';
+import { filterDiscordData } from '../utils/filter_discord_data.js';
+import logManager from './logManager.js';
+import aiEvaluator from './aiEvaluator.js';
+import notificationManager from './notificationManager.js';
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 class TaskTracker {
     constructor() {
@@ -9,9 +18,9 @@ class TaskTracker {
         this.interval = null;
         this.tasksPath = path.join(__dirname, '../data/tasks.json');
         this.messageHistoryPath = path.join(__dirname, '../data/message_history.json');
-        this.logManager = require('./logManager');
-        this.aiEvaluator = require('./aiEvaluator');
-        this.notificationManager = require('./notificationManager');
+        this.logManager = logManager;
+        this.aiEvaluator = aiEvaluator;
+        this.notificationManager = notificationManager;
         this.lastRun = null;
         this.activeTaskCount = 0;
     }
@@ -115,4 +124,6 @@ class TaskTracker {
     }
 }
 
-module.exports = new TaskTracker(); 
+// Create and export a singleton instance
+const taskTracker = new TaskTracker();
+export default taskTracker; 

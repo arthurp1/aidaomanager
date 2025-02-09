@@ -1,7 +1,17 @@
-const { Client, GatewayIntentBits } = require('discord.js');
-const fs = require('fs').promises;
-const path = require('path');
-require('dotenv').config();
+import { Client, GatewayIntentBits } from 'discord.js';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { writeToNillion, readFromNillion } from '../data/nillion/nillion.js';
+import dotenv from 'dotenv';
+
+// Initialize dotenv
+dotenv.config();
+
+// ES Modules don't have __dirname, so we need to create it
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const MESSAGES_DATA_FILE = path.join(DATA_DIR, 'discord.json');
@@ -26,15 +36,15 @@ async function ensureDataDir() {
 
 async function loadExistingMessages() {
     try {
-        const data = await fs.readFile(MESSAGES_DATA_FILE, 'utf8');
-        return JSON.parse(data);
+        const result = await readFromNillion();
+        return result.success ? result.data : [];
     } catch {
         return [];
     }
 }
 
 async function saveMessages(messages) {
-    await fs.writeFile(MESSAGES_DATA_FILE, JSON.stringify(messages, null, 2));
+    return await writeToNillion(messages);
 }
 
 async function fetchMessageReactions(message) {
@@ -97,7 +107,7 @@ async function fetchAndStoreMessages() {
 
         if (!generalChannel) {
             console.error('No general channel found');
-            return;
+            return [];
         }
 
         // Fetch messages
@@ -140,9 +150,13 @@ async function fetchAndStoreMessages() {
 
         // Combine and save messages
         const allMessages = [...existingMessages, ...messages];
-        await saveMessages(allMessages);
+        const saveResult = await saveMessages(allMessages);
         
-        console.log(`[${formatDateTime(new Date())}] Discord data fetched`);
+        if (!saveResult.success) {
+            throw new Error(`Failed to save messages to Nillion: ${saveResult.error}`);
+        }
+        
+        console.log(`[${new Date().toLocaleString()}] Discord data fetched and stored in Nillion`);
 
         return allMessages;
     } catch (error) {
@@ -152,7 +166,7 @@ async function fetchAndStoreMessages() {
 }
 
 // Export the fetch function for CLI use
-module.exports = {
+export {
     fetchAndStoreMessages,
     client
 };
