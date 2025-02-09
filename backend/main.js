@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 
 // Create readline interface
 const rl = readline.createInterface({
@@ -34,7 +34,7 @@ const DATA_DIR = path.join(__dirname, 'data');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const TOOL_DATA_FILE = path.join(DATA_DIR, 'tool_data.json');
-const MOCK_DATA_FILE = path.join(__dirname, '..', 'frontend_tasks.json');
+const MOCK_DATA_FILE = path.join(__dirname, '..', 'frontend', 'public', 'frontend_tasks.json');
 
 // In-memory storage (replace with your database in production)
 let tasks = [];

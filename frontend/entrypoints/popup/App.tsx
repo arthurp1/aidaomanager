@@ -351,32 +351,45 @@ function App() {
       requirements: newTask.requirements.map(req => req.id),
     };
 
+    // Update local state first
     setTasks(prev => [...prev, taskData]);
     setShowTaskForm(false);
 
+    // Try to sync with backend, but don't block the UI
     try {
       // Update tasks with frontend_tasks.json
-      const response = await fetch('/frontend_tasks.json');
+      const response = await fetch(chrome.runtime.getURL('frontend_tasks.json'));
       const frontendTasks = await response.json();
       
-      await fetch('http://localhost:3000/updateTasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(frontendTasks),
-      });
+      // Try to sync with backend
+      await Promise.allSettled([
+        // Send to backend API
+        fetch('http://localhost:3001/updateTasks', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(frontendTasks),
+        }).catch(error => {
+          console.warn('Failed to sync tasks with backend:', error);
+          // Task is still saved locally, so we can continue
+        }),
 
-      // Start tracking
-      await fetch('http://localhost:3000/tracking-toggle', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'start' }),
-      });
+        // Start tracking
+        fetch('http://localhost:3001/tracking/toggle', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ action: 'start' }),
+        }).catch(error => {
+          console.warn('Failed to start tracking on backend:', error);
+          // Tracking failed but task is still created
+        })
+      ]);
     } catch (error) {
-      console.error('Error updating tasks or starting tracking:', error);
+      console.warn('Error syncing with backend:', error);
+      // Don't block the UI or show error - task is still created locally
     }
   };
 
