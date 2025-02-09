@@ -3,7 +3,6 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { writeToNillion, readFromNillion } from '../data/nillion/nillion.js';
 import dotenv from 'dotenv';
 
 // Initialize dotenv
@@ -36,15 +35,17 @@ async function ensureDataDir() {
 
 async function loadExistingMessages() {
     try {
-        const result = await readFromNillion();
-        return result.success ? result.data : [];
+        const data = await fs.readFile(MESSAGES_DATA_FILE, 'utf8');
+        return JSON.parse(data);
     } catch {
         return [];
     }
 }
 
 async function saveMessages(messages) {
-    return await writeToNillion(messages);
+    await ensureDataDir();
+    await fs.writeFile(MESSAGES_DATA_FILE, JSON.stringify(messages, null, 2));
+    return { success: true };
 }
 
 async function fetchMessageReactions(message) {
@@ -153,10 +154,10 @@ async function fetchAndStoreMessages() {
         const saveResult = await saveMessages(allMessages);
         
         if (!saveResult.success) {
-            throw new Error(`Failed to save messages to Nillion: ${saveResult.error}`);
+            throw new Error('Failed to save messages to JSON file');
         }
         
-        console.log(`[${new Date().toLocaleString()}] Discord data fetched and stored in Nillion`);
+        console.log(`[${new Date().toLocaleString()}] Discord data fetched and stored in ${MESSAGES_DATA_FILE}`);
 
         return allMessages;
     } catch (error) {

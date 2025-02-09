@@ -2,11 +2,13 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { readFromNillion, writeToNillion } from '../data/nillion/nillion.js';
 
 // ES Modules don't have __dirname, so we need to create it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const DISCORD_DATA_FILE = path.join(__dirname, '..', 'data', 'discord.json');
+const FILTERED_DATA_FILE = path.join(__dirname, '..', 'data', 'discord_filtered.json');
 
 function formatDateTime(date) {
     const d = date || new Date();
@@ -21,18 +23,14 @@ function formatDateTime(date) {
     });
 }
 
-// This function filters and aggregates Discord data from Nillion
+// This function filters and aggregates Discord data from JSON
 // and computes metrics per user including activity, responsiveness, and engagement.
 async function filterDiscordData() {
   let messages;
   try {
-    const result = await readFromNillion();
-    if (!result.success) {
-      throw new Error(`Failed to read from Nillion: ${result.error}`);
-    }
-    messages = result.data;
+    messages = JSON.parse(await fs.readFile(DISCORD_DATA_FILE, 'utf8'));
   } catch (err) {
-    console.error('Error reading discord messages from Nillion:', err);
+    console.error('Error reading discord messages from JSON:', err);
     return [];
   }
 
@@ -130,15 +128,12 @@ async function filterDiscordData() {
     aggregatedData.push(m);
   });
 
-  // Store the filtered data to Nillion
+  // Store the filtered data to JSON
   try {
-    const saveResult = await writeToNillion(aggregatedData);
-    if (!saveResult.success) {
-      throw new Error(`Failed to save filtered data to Nillion: ${saveResult.error}`);
-    }
-    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in Nillion`);
+    await fs.writeFile(FILTERED_DATA_FILE, JSON.stringify(aggregatedData, null, 2));
+    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in ${FILTERED_DATA_FILE}`);
   } catch (err) {
-    console.error('Error writing filtered discord data to Nillion:', err);
+    console.error('Error writing filtered discord data to JSON:', err);
   }
 
   return aggregatedData;
