@@ -1,8 +1,8 @@
 {
-  "name": "wxt-react-starter",
-  "description": "manifest.json description",
+  "name": "ai-dao-manager",
+  "description": "AI-powered development assistant that helps you manage tasks, track time, and boost productivity",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -12,7 +12,10 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "dev:webapp": "vite",
+    "build:webapp": "tsc && vite build",
+    "preview:webapp": "vite preview"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
