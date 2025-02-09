@@ -60,7 +60,16 @@ class TaskTracker {
         try {
             // Read tasks configuration
             const tasks = JSON.parse(await fs.readFile(this.tasksPath, 'utf8'));
-            const discordTasks = tasks.filter(task => 
+            
+            // Flatten the nested tasks structure
+            const allTasks = tasks.reduce((acc, group) => {
+                if (group.tasks && Array.isArray(group.tasks)) {
+                    acc.push(...group.tasks);
+                }
+                return acc;
+            }, []);
+
+            const discordTasks = allTasks.filter(task => 
                 task.tools.includes('discord.com') && 
                 task.requirements_active && 
                 task.requirements_active.length > 0
