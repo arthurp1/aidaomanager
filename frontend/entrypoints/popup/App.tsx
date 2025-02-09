@@ -323,7 +323,7 @@ function App() {
     requirements: RequirementFormData[];
   }
 
-  const handleCreateTask = (newTask: TaskFormInput) => {
+  const handleCreateTask = async (newTask: TaskFormInput) => {
     if (!selectedRole) return;
 
     // First save any new requirements
@@ -351,6 +351,31 @@ function App() {
 
     setTasks(prev => [...prev, taskData]);
     setShowTaskForm(false);
+
+    try {
+      // Update tasks with frontend_tasks.json
+      const response = await fetch('/frontend_tasks.json');
+      const frontendTasks = await response.json();
+      
+      await fetch('http://localhost:3000/updateTasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(frontendTasks),
+      });
+
+      // Start tracking
+      await fetch('http://localhost:3000/tracking-toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'start' }),
+      });
+    } catch (error) {
+      console.error('Error updating tasks or starting tracking:', error);
+    }
   };
 
   const toggleTaskCollapse = (taskId: string) => {
