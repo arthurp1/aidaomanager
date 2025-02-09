@@ -12,7 +12,7 @@ const __dirname = dirname(__filename);
 class NotificationManager {
     constructor() {
         this.messageHistoryPath = path.join(__dirname, '../data/message_history.json');
-        this.testUserId = '1205593973591253083';
+        this.testUserId = '1334886393226465291';
     }
 
     async getGeneralChannel() {
