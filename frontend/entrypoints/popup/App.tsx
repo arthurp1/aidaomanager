@@ -19,6 +19,8 @@ import mockWalletData from './data/wallet.json';
 import { createCoinbaseWalletSDK } from '@coinbase/wallet-sdk';
 import { JsonRpcProvider } from '@ethersproject/providers';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+// Import MessageInput component
+import { MessageInput } from './components/MessageInput';
 
 // Add new interfaces after existing ones
 interface Organization {
@@ -1528,45 +1530,32 @@ function App() {
         )}
       </div>
 
-      {/* AI Chat Input - Sticky to bottom */}
-      <div className="sticky bottom-12 z-10 border-t dark:border-gray-700 bg-white dark:bg-dark-surface overflow-hidden">
-        <form className="flex" onSubmit={(e) => {
-          e.preventDefault();
-          if (!aiInput.trim()) return;
-          handleAiSubmit(aiInput);
-          setAiInput('');
-        }}>
-          <input
-            type="text"
-            placeholder="Ask AI..."
-            value={aiInput}
-            onChange={(e) => setAiInput(e.target.value)}
-            className="flex-1 px-3 py-1.5 bg-transparent text-sm focus:outline-none"
-            disabled={isAiLoading}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (aiInput.trim()) {
-                  handleAiSubmit(aiInput);
-                  setAiInput('');
-                }
-                switchToAITab();
+      {/* AI Chat Input - Replace with MessageInput */}
+      <MessageInput
+        onSubmit={async (message, destination) => {
+          switch (destination) {
+            case 'ai':
+              await handleAiSubmit(message);
+              break;
+            case 'discord':
+              // Handle Discord message
+              if (walletInfo?.socials?.discord) {
+                // TODO: Implement Discord message sending
+                console.log('Sending to Discord:', message);
               }
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!aiInput.trim() || isAiLoading}
-            className="px-3 py-1.5 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-          >
-            {isAiLoading ? (
-              <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-            ) : (
-              <PaperAirplaneIcon className="w-4 h-4" />
-            )}
-          </button>
-        </form>
-      </div>
+              break;
+            case 'telegram':
+              // Handle Telegram message
+              if (walletInfo?.socials?.telegram) {
+                // TODO: Implement Telegram message sending
+                console.log('Sending to Telegram:', message);
+              }
+              break;
+          }
+        }}
+        isLoading={isAiLoading}
+        connectedAccounts={walletInfo?.socials}
+      />
 
       {/* Bottom Navigation */}
       <div className="sticky bottom-0 z-10 h-12 border-t dark:border-gray-700 bg-white dark:bg-dark-surface flex items-center justify-around px-3 overflow-hidden">
