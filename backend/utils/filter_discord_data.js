@@ -2,13 +2,31 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { readFromNillion, writeToNillion } from '../data/nillion/nillion.js';
 
 // ES Modules don't have __dirname, so we need to create it
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const DISCORD_DATA_FILE = path.join(__dirname, '..', 'data', 'discord.json');
-const FILTERED_DATA_FILE = path.join(__dirname, '..', 'data', 'discord_filtered.json');
+// File paths
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const NILLION_DIR = path.join(DATA_DIR, 'nillion');
+const RECORD_IDS_FILE = path.join(NILLION_DIR, 'nillion_record_ids.json');
+const FILTERED_RECORD_IDS_FILE = path.join(NILLION_DIR, 'nillion_filtered_record_ids.json');
+
+async function loadRecordIds() {
+    try {
+        const data = await fs.readFile(RECORD_IDS_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        console.error('Error loading record IDs:', error);
+        return [];
+    }
+}
+
+async function saveFilteredRecordIds(recordIds) {
+    await fs.writeFile(FILTERED_RECORD_IDS_FILE, JSON.stringify(recordIds, null, 2));
+}
 
 function formatDateTime(date) {
     const d = date || new Date();
@@ -23,14 +41,23 @@ function formatDateTime(date) {
     });
 }
 
-// This function filters and aggregates Discord data from JSON
+// This function filters and aggregates Discord data from Nillion
 // and computes metrics per user including activity, responsiveness, and engagement.
 async function filterDiscordData() {
   let messages;
   try {
-    messages = JSON.parse(await fs.readFile(DISCORD_DATA_FILE, 'utf8'));
+    const recordIds = await loadRecordIds();
+    if (!recordIds.length) {
+      throw new Error('No record IDs found');
+    }
+    
+    const result = await readFromNillion(recordIds);
+    if (!result.success) {
+      throw new Error(`Failed to read from Nillion: ${result.error}`);
+    }
+    messages = result.data;
   } catch (err) {
-    console.error('Error reading discord messages from JSON:', err);
+    console.error('Error reading discord messages from Nillion:', err);
     return [];
   }
 
@@ -44,8 +71,8 @@ async function filterDiscordData() {
   const getUserMetrics = (userId, username) => {
     if (!userMetrics[userId]) {
       userMetrics[userId] = {
-        authorId: userId,
-        authorUsername: username,
+        authorId: { $allot: userId },
+        authorUsername: { $allot: username },
         totalMessages: 0,
         firstMessage: null,
         lastMessage: null,
@@ -63,9 +90,9 @@ async function filterDiscordData() {
 
   // First pass: Process each message to aggregate basic metrics
   messages.forEach((msg) => {
-    const metrics = getUserMetrics(msg.authorId, msg.authorUsername);
+    const metrics = getUserMetrics(msg.authorId.$allot || msg.authorId, msg.authorUsername.$allot || msg.authorUsername);
     metrics.totalMessages++;
-    metrics.totalMessageLength += msg.content.length;
+    metrics.totalMessageLength += (msg.content.$allot || msg.content).length;
     // Update first and last message timestamps
     if (!metrics.firstMessage || new Date(msg.timestamp) < new Date(metrics.firstMessage)) {
       metrics.firstMessage = msg.timestamp;
@@ -76,15 +103,16 @@ async function filterDiscordData() {
     if (msg.editedTimestamp) {
       metrics.editedMessages++;
     }
-    if (msg.attachments && msg.attachments.length > 0) {
+    if (msg.attachments && (msg.attachments.$allot || msg.attachments).length > 0) {
       metrics.attachmentsCount++;
     }
-    if (msg.embeds && msg.embeds.length > 0) {
+    if (msg.embeds && (msg.embeds.$allot || msg.embeds).length > 0) {
       metrics.embedsCount++;
     }
     // Count mentions sent (using regex to match Discord mention format)
     const mentionRegex = /<@(?:(?:!))?(\d+)>/g;
-    const mentions = msg.content.match(mentionRegex);
+    const content = msg.content.$allot || msg.content;
+    const mentions = content.match(mentionRegex);
     if (mentions) {
       metrics.mentionsSent += mentions.length;
     }
@@ -98,18 +126,19 @@ async function filterDiscordData() {
   // Second pass: Compute response times for mentions
   messages.forEach((msg, index) => {
     const mentionRegex = /<@(?:(?:!))?(\d+)>/g;
+    const content = msg.content.$allot || msg.content;
     let match;
-    while ((match = mentionRegex.exec(msg.content)) !== null) {
+    while ((match = mentionRegex.exec(content)) !== null) {
       const mentionedUserId = match[1];
       // Skip if the author mentions themselves
-      if (mentionedUserId === msg.authorId) continue;
+      if (mentionedUserId === (msg.authorId.$allot || msg.authorId)) continue;
       // Look for the first message from the mentioned user after the current message
       for (let i = index + 1; i < messages.length; i++) {
         const nextMsg = messages[i];
-        if (nextMsg.authorId === mentionedUserId) {
+        if ((nextMsg.authorId.$allot || nextMsg.authorId) === mentionedUserId) {
           const responseTimeSeconds = (new Date(nextMsg.timestamp) - new Date(msg.timestamp)) / 1000;
           // Ensure the user entry exists even if they haven't posted before
-          const responderMetrics = getUserMetrics(mentionedUserId, nextMsg.authorUsername);
+          const responderMetrics = getUserMetrics(mentionedUserId, nextMsg.authorUsername.$allot || nextMsg.authorUsername);
           responderMetrics.responseTimes.push(responseTimeSeconds);
           break;
         }
@@ -128,12 +157,22 @@ async function filterDiscordData() {
     aggregatedData.push(m);
   });
 
-  // Store the filtered data to JSON
+  // Store the filtered data to Nillion
   try {
-    await fs.writeFile(FILTERED_DATA_FILE, JSON.stringify(aggregatedData, null, 2));
-    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in ${FILTERED_DATA_FILE}`);
+    const saveResult = await writeToNillion(aggregatedData);
+    if (!saveResult.success) {
+      throw new Error(`Failed to save filtered data to Nillion: ${saveResult.error}`);
+    }
+    
+    // Store the new record IDs for the filtered data
+    if (saveResult.recordIds) {
+      await saveFilteredRecordIds(saveResult.recordIds);
+    }
+    
+    console.log(`[${formatDateTime(new Date())}] Filtered discord data stored in Nillion`);
+    console.log(`Filtered record IDs saved to ${FILTERED_RECORD_IDS_FILE}`);
   } catch (err) {
-    console.error('Error writing filtered discord data to JSON:', err);
+    console.error('Error writing filtered discord data to Nillion:', err);
   }
 
   return aggregatedData;

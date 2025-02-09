@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { writeToNillion, readFromNillion } from '../data/nillion/nillion.js';
 import dotenv from 'dotenv';
 
 // Initialize dotenv
@@ -12,8 +13,11 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// File paths
 const DATA_DIR = path.join(__dirname, '..', 'data');
+const NILLION_DIR = path.join(DATA_DIR, 'nillion');
 const MESSAGES_DATA_FILE = path.join(DATA_DIR, 'discord.json');
+const RECORD_IDS_FILE = path.join(NILLION_DIR, 'nillion_record_ids.json');
 
 // Initialize Discord client with necessary intents
 const client = new Client({
@@ -86,6 +90,19 @@ function formatDateTime(date) {
     });
 }
 
+async function loadRecordIds() {
+    try {
+        const data = await fs.readFile(RECORD_IDS_FILE, 'utf8');
+        return JSON.parse(data);
+    } catch {
+        return [];
+    }
+}
+
+async function saveRecordIds(recordIds) {
+    await fs.writeFile(RECORD_IDS_FILE, JSON.stringify(recordIds, null, 2));
+}
+
 async function fetchAndStoreMessages() {
     try {
         // Get existing messages
@@ -140,7 +157,18 @@ async function fetchAndStoreMessages() {
                         editedTimestamp: message.editedAt?.toISOString() || null,
                         attachments: Array.from(message.attachments.values()).map(a => a.url),
                         embeds: message.embeds.map(e => e.data),
-                        reactions: reactions
+                        reactions: reactions.map(reaction => ({
+                            emoji: {
+                                name: reaction.emoji.name,
+                                id: reaction.emoji.id,
+                                animated: reaction.emoji.animated
+                            },
+                            count: reaction.count,
+                            users: reaction.users.map(user => ({
+                                userId: user.id,
+                                username: user.username
+                            }))
+                        }))
                     });
                     existingIds.add(message.id);
                 }
@@ -151,13 +179,19 @@ async function fetchAndStoreMessages() {
 
         // Combine and save messages
         const allMessages = [...existingMessages, ...messages];
-        const saveResult = await saveMessages(allMessages);
+        const saveResult = await writeToNillion(allMessages);
         
         if (!saveResult.success) {
-            throw new Error('Failed to save messages to JSON file');
+            throw new Error(`Failed to save messages to Nillion: ${saveResult.error}`);
+        }
+
+        // Store the record IDs
+        if (saveResult.recordIds) {
+            await saveRecordIds(saveResult.recordIds);
         }
         
-        console.log(`[${new Date().toLocaleString()}] Discord data fetched and stored in ${MESSAGES_DATA_FILE}`);
+        console.log(`[${new Date().toLocaleString()}] Discord data fetched and stored in Nillion`);
+        console.log(`Record IDs saved to ${RECORD_IDS_FILE}`);
 
         return allMessages;
     } catch (error) {

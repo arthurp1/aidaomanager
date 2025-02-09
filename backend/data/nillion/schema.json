@@ -12,15 +12,18 @@
       },
       "content": {
         "type": "string",
-        "description": "The message content"
+        "description": "The message content",
+        "$allot": "private"
       },
       "authorId": {
         "type": "string",
-        "description": "Unique identifier for the message author"
+        "description": "Unique identifier for the message author",
+        "$allot": "private"
       },
       "authorUsername": {
         "type": "string",
-        "description": "Username of the message author"
+        "description": "Username of the message author",
+        "$allot": "private"
       },
       "channelId": {
         "type": "string",
@@ -28,7 +31,8 @@
       },
       "channelName": {
         "type": "string",
-        "description": "Name of the channel"
+        "description": "Name of the channel",
+        "$allot": "private"
       },
       "timestamp": {
         "type": "string",
@@ -43,13 +47,15 @@
       "attachments": {
         "type": "array",
         "items": {
-          "type": "object"
+          "type": "object",
+          "$allot": "private"
         }
       },
       "embeds": {
         "type": "array",
         "items": {
-          "type": "object"
+          "type": "object",
+          "$allot": "private"
         }
       },
       "reactions": {
@@ -61,7 +67,8 @@
               "type": "object",
               "properties": {
                 "name": {
-                  "type": "string"
+                  "type": "string",
+                  "$allot": "private"
                 },
                 "id": {
                   "type": ["string", "null"]
@@ -82,10 +89,12 @@
                 "type": "object",
                 "properties": {
                   "userId": {
-                    "type": "string"
+                    "type": "string",
+                    "$allot": "private"
                   },
                   "username": {
-                    "type": "string"
+                    "type": "string",
+                    "$allot": "private"
                   }
                 },
                 "required": ["userId", "username"]

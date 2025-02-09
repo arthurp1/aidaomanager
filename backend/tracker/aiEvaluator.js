@@ -59,11 +59,11 @@ class AIEvaluator {
         Using this filtered activity data:
         ${JSON.stringify(filteredData)}
         
-        Provide an evaluation in the following JSON format:
+        Please analyze the engagement and provide feedback in this JSON format:
         {
             "level": "Excellent/Ok/Poor",
-            "message": "An encouraging one-line private message with exactly one emoji, that doesn't reveal metrics",
-            "proof": "Brief justification without exposing raw data"
+            "message": "A friendly one-line message with exactly one emoji that focuses on engagement without mentioning specific metrics",
+            "proof": "Brief observation of patterns without raw data"
         }
         
         Guidelines:
@@ -71,9 +71,11 @@ class AIEvaluator {
         - Be encouraging and constructive
         - Give encouragement for "Poor" ratings
         - Celebrate for "Excellent" ratings
+        - Avoid mentioning specific requirements or metrics in the message
+        - Write as if you're a supportive team member sending a quick chat message
         - Keep the message concise and actionable as a private one-line message from a manager/other member of the team to a team member
         - Include exactly one emoji, preferably at the end, to add a friendly tone
-        - Ensure the message sounds natural, like a kind manager giving a nudge to be more active
+        - Ensure the message sounds natural, like a kind manager giving a nudge
         `;
     }
 

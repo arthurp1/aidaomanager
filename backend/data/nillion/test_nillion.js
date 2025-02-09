@@ -1,7 +1,7 @@
 import { testNillionStorage } from './nillion.js';
 import { v4 as uuidv4 } from 'uuid';
 
-// Test data structure with plain strings (encryption handled by SecretVaultWrapper)
+// Test data structure with plain values (encryption handled by SecretVaultWrapper based on schema)
 const testUserData = [
   {
     id: uuidv4(),
