@@ -10,6 +10,10 @@
   will-change: filter;
   transition: filter 300ms;
 }
+.corners {
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
 .logo:hover {
   filter: drop-shadow(0 0 2em #54bc4ae0);
 }
