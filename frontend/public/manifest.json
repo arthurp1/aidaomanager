@@ -1,24 +1,42 @@
 {
   "manifest_version": 3,
-  "name": "AIDAO Manager",
+  "name": "AI DAO Manager",
+  "description": "AI-powered development assistant that helps you manage tasks, track time, and boost productivity",
   "version": "1.0.0",
-  "description": "Manage your tasks and track your progress",
   "permissions": [
     "storage",
     "activeTab",
     "tabs"
   ],
+  "icons": {
+    "16": "icon/16.png",
+    "32": "icon/32.png",
+    "48": "icon/48.png",
+    "96": "icon/96.png",
+    "128": "icon/128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "AI DAO Manager",
+    "default_popup": "index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.google.com/*"],
+      "js": ["content-scripts/content.js"]
+    }
+  ],
   "web_accessible_resources": [{
     "resources": [
+      "index.html",
       "tools_docs.json",
       "frontend_tasks.json",
       "*.png"
     ],
     "matches": ["<all_urls>"]
   }],
-  "action": {
-    "default_popup": "index.html"
-  },
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000 http://localhost:3001; object-src 'self'"
   }

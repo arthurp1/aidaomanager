@@ -16,7 +16,8 @@
         "format:check": "prettier -c .prettierrc --check \"**/*.{ts,js,cjs,json,md}\"",
         "lint:fix": "turbo run lint:fix",
         "test:types": "turbo run test:types",
-        "start": "node main.js"
+        "start": "node main.js",
+        "update-extension": "node scripts/update-extension.js"
     },
     "author": "Coinbase Inc.",
     "license": "Apache-2.0",

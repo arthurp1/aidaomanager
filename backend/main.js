@@ -11,7 +11,6 @@ import { fetchAndStoreMessages, client } from './tools/discord.js';
 import { filterDiscordData } from './utils/filter_discord_data.js';
 import { sendDirectMessage, sendChannelMessage } from './utils/send_message.js';
 import taskTracker from './tracker/taskTracker.js';
-import { createSchema, getSchemaId } from './data/nillion/postSchema.js';
 
 // ES Modules don't have __dirname, so we need to create it
 const __filename = fileURLToPath(import.meta.url);
@@ -30,6 +29,26 @@ const rl = readline.createInterface({
 app.use(cors());
 app.use(bodyParser.json());
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Home route - will serve index.html from public directory
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Downloads route - serve the extension zip file
+app.get('/downloads/aidao-manager.zip', async (req, res) => {
+    try {
+        const zipPath = path.join(__dirname, 'public', 'downloads', 'aidao-manager.zip');
+        // Check if file exists
+        await fs.access(zipPath);
+        res.download(zipPath);
+    } catch (error) {
+        res.status(404).send('Extension package not found. Please try again later.');
+    }
+});
+
 // File paths
 const DATA_DIR = path.join(__dirname, 'data');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
@@ -46,19 +65,15 @@ let mockData = null;
 // Use the taskTracker instance directly since it's already instantiated in the module
 const tracker = taskTracker;
 
-// Initialize Nillion schema
+// Initialize Nillion schema - modified to be optional
 async function initializeNillionSchema() {
     try {
-        let schemaId = await getSchemaId();
-        if (!schemaId) {
-            console.log('No existing schema found, creating new schema...');
-            schemaId = await createSchema();
-        }
-        console.log('Nillion schema initialized with ID:', schemaId);
-        return schemaId;
+        // Skip Nillion initialization
+        console.log('Nillion integration disabled');
+        return null;
     } catch (error) {
-        console.error('Failed to initialize Nillion schema:', error);
-        throw error;
+        console.log('Nillion initialization skipped');
+        return null;
     }
 }
 
@@ -176,13 +191,11 @@ async function handleTask(data) {
 // Load mock data on startup
 loadMockData().catch(console.error);
 
-// Initialize data and schema on startup
-Promise.all([
-    loadData(),
-    initializeNillionSchema()
-]).then(() => {
-    console.log('Server initialization complete');
-}).catch(console.error);
+// Initialize data and schema on startup, but don't wait for Nillion
+loadData().catch(console.error);
+initializeNillionSchema().catch(error => {
+    console.log('Skipping Nillion initialization');
+});
 
 // Available endpoints for CLI
 const endpoints = {
@@ -676,7 +689,25 @@ app.use((err, req, res, next) => {
 // Start the server and CLI
 app.listen(port, async () => {
     console.log(`Server is running on port ${port}`);
-    await ensureDataDir();
-    await loadData();
-    startCLI();
+    
+    try {
+        // Initialize all data stores
+        await ensureDataDir();
+        await loadData();
+        await loadMockData().catch(error => {
+            console.log('Mock data not available - continuing without it');
+        });
+        
+        // Initialize Nillion (disabled)
+        await initializeNillionSchema().catch(() => {
+            console.log('Nillion disabled - continuing without it');
+        });
+        
+        console.log('Server initialization complete');
+        startCLI();
+    } catch (error) {
+        console.error('Error during server initialization:', error);
+        // Continue running even if there are non-critical errors
+        startCLI();
+    }
 });
