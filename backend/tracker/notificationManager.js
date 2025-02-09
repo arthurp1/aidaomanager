@@ -63,16 +63,7 @@ class NotificationManager {
         const lastMessage = history[userId]?.[task.id]?.[requirement.id];
         const now = new Date();
 
-        // Check if we can send a channel message (excellence announcement)
-        if (this.canSendMessage(lastMessage?.channelMessage, now)) {
-            const channelId = await this.getGeneralChannel();
-            if (channelId) {
-                const message = this.formatExcellenceMessage(evaluation, task, requirement);
-                await sendChannelMessage(channelId, message);
-                
-                this.updateMessageHistory(history, userId, task.id, requirement.id, 'channelMessage', now);
-            }
-        }
+        // Channel messaging disabled as per configuration
 
         // Also send a direct message of congratulations
         if (this.canSendMessage(lastMessage?.directMessage, now)) {
@@ -96,21 +87,34 @@ class NotificationManager {
         }
     }
 
+    /**
+     * Determines if a new message can be sent based on rate limiting rules.
+     * Ensures messages are not sent more frequently than once per minute.
+     * @param {string|Date|null} lastMessageTime - Timestamp of the last message
+     * @param {Date} now - Current timestamp
+     * @returns {boolean} - Whether a new message can be sent
+     */
     canSendMessage(lastMessageTime, now) {
         if (!lastMessageTime) return true;
         
-        const lastMessage = new Date(lastMessageTime);
-        const minutesSinceLastMessage = (now - lastMessage) / (1000 * 60);
-        return minutesSinceLastMessage >= 1;
+        try {
+            const lastMessage = lastMessageTime instanceof Date ? lastMessageTime : new Date(lastMessageTime);
+            if (isNaN(lastMessage.getTime())) return true; // Handle invalid date
+            
+            const minutesSinceLastMessage = (now - lastMessage) / (1000 * 60);
+            return minutesSinceLastMessage >= 1;
+        } catch (error) {
+            console.error('Error in rate limiting calculation:', error);
+            return true; // Fail open to ensure notifications aren't completely blocked
+        }
     }
 
     formatExcellenceMessage(evaluation, task, requirement) {
-        return `🌟 Outstanding Achievement! 🌟\n\n${evaluation.message}\n\nKeep up the amazing work! 💪`;
+        return evaluation.message;
     }
 
     formatDirectMessage(evaluation, task, requirement) {
-        const emoji = requirement.emoji || '📊';
-        return `${emoji} ${task.title} - ${requirement.title}\n\n${evaluation.message}`;
+        return evaluation.message;
     }
 
     updateMessageHistory(history, userId, taskId, requirementId, messageType, timestamp) {

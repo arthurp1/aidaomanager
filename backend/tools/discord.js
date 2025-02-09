@@ -62,6 +62,19 @@ async function fetchMessageReactions(message) {
     return reactions;
 }
 
+function formatDateTime(date) {
+    const d = date || new Date();
+    return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
 async function fetchAndStoreMessages() {
     try {
         // Get existing messages
@@ -129,7 +142,7 @@ async function fetchAndStoreMessages() {
         const allMessages = [...existingMessages, ...messages];
         await saveMessages(allMessages);
         
-        console.log('Messages fetched and saved successfully');
+        console.log(`[${formatDateTime(new Date())}] Discord data fetched`);
 
         return allMessages;
     } catch (error) {

@@ -1,6 +1,19 @@
 const fs = require('fs').promises;
 const path = require('path');
 
+function formatDateTime(date) {
+    const d = date || new Date();
+    return d.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+}
+
 // This function filters and aggregates Discord data from the JSON file
 // and computes metrics per user including activity, responsiveness, and engagement.
 async function filterDiscordData() {
@@ -113,7 +126,7 @@ async function filterDiscordData() {
   const outputPath = path.join(__dirname, '..', 'data', 'discord_filtered.json');
   try {
     await fs.writeFile(outputPath, JSON.stringify(aggregatedData, null, 2), 'utf8');
-    console.log('Filtered data stored in', outputPath);
+    console.log(`[${formatDateTime(new Date())}] Filtered discord data`);
   } catch (err) {
     console.error('Error writing filtered discord data:', err);
   }
